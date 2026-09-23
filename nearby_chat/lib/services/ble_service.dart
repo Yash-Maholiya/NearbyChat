@@ -8,11 +8,19 @@ import '../models/peer.dart';
 import 'frame_codec.dart';
 import 'platform_util.dart';
 
+class _DeviceBinding {
+  final String deviceId;
+  final DateTime lastSeen;
+
+  _DeviceBinding(this.deviceId, this.lastSeen);
+}
+
 class BleService {
   static const String serviceUuid = 'c0de0001-beef-11e4-8998-0002a5d5c51b';
   static const String identityCharacteristicUuid = 'c0de0002-beef-11e4-8998-0002a5d5c51b';
   static const String inboxCharacteristicUuid = 'c0de0003-beef-11e4-8998-0002a5d5c51b';
   static const String peerNamePrefix = 'NC-';
+  static const Duration _deviceBindingTtl = Duration(minutes: 10);
 
   final FrameReassembler _reassembler = FrameReassembler();
   final StreamController<Peer> _peerDiscoveredController = StreamController<Peer>.broadcast();
@@ -23,7 +31,7 @@ class BleService {
   final Map<String, Peer> _discoveredPeers = {};
   final Set<String> _connectedDevices = {};
   final Set<String> _resolvingDevices = {};
-  final Map<String, String> _lastKnownDeviceIdByPublicKey = {};
+  final Map<String, _DeviceBinding> _lastKnownDeviceIdByPublicKey = {};
 
   String? _localUsername;
   String? _localPublicKeyBase64;
@@ -63,7 +71,22 @@ class BleService {
   Map<String, Peer> get discoveredPeers => Map.unmodifiable(_discoveredPeers);
 
   /// Gets the last known BLE deviceId for a peer's public key (useful for sending ACKs).
-  String? getLastKnownDeviceId(String publicKey) => _lastKnownDeviceIdByPublicKey[publicKey];
+  /// Expired entries (> 10 mins) return null to avoid connecting to rotated or dead device IDs.
+  String? getLastKnownDeviceId(String publicKey) {
+    final binding = _lastKnownDeviceIdByPublicKey[publicKey];
+    if (binding == null) return null;
+    if (DateTime.now().difference(binding.lastSeen) > _deviceBindingTtl) {
+      _lastKnownDeviceIdByPublicKey.remove(publicKey);
+      return null;
+    }
+    return binding.deviceId;
+  }
+
+  void _recordDeviceBinding(String publicKey, String deviceId) {
+    if (publicKey.isNotEmpty && deviceId.isNotEmpty) {
+      _lastKnownDeviceIdByPublicKey[publicKey] = _DeviceBinding(deviceId, DateTime.now());
+    }
+  }
 
   /// Initializes BLE listeners and handlers.
   Future<void> init({
@@ -174,10 +197,8 @@ class BleService {
           if (fullBytes != null) {
             try {
               final envelope = ChatEnvelope.fromBinary(fullBytes);
-              // Associate sender's public key with this BLE deviceId for ACK routing
-              if (deviceId.isNotEmpty && envelope.senderPublicKey.isNotEmpty) {
-                _lastKnownDeviceIdByPublicKey[envelope.senderPublicKey] = deviceId;
-              }
+              // Associate sender's public key with this BLE deviceId for ACK routing with TTL
+              _recordDeviceBinding(envelope.senderPublicKey, deviceId);
               if (!_envelopeReceivedController.isClosed) {
                 _envelopeReceivedController.add(envelope);
               }
@@ -361,7 +382,7 @@ class BleService {
           final publicKey = data['publicKey'] as String? ?? '';
 
           if (publicKey.isNotEmpty) {
-            _lastKnownDeviceIdByPublicKey[publicKey] = deviceId;
+            _recordDeviceBinding(publicKey, deviceId);
             final peer = Peer(
               deviceId: deviceId,
               username: username,

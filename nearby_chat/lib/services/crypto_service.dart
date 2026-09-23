@@ -238,7 +238,7 @@ class CryptoService {
     );
 
     return ChatEnvelope(
-      version: 1,
+      version: 2,
       messageId: msgId,
       senderUsername: senderUsername,
       senderPublicKey: publicKeyBase64,
@@ -312,7 +312,7 @@ class CryptoService {
     );
 
     return ChatEnvelope(
-      version: 1,
+      version: 2,
       messageId: _uuid.v4(),
       senderUsername: senderUsername,
       senderPublicKey: publicKeyBase64,
@@ -328,6 +328,7 @@ class CryptoService {
   }
 
   /// Verifies an incoming ACK envelope using the retained pending message key.
+  /// Note: Does not consume the key so callers can safely check message state.
   Future<bool> verifyAckEnvelope(ChatEnvelope ackEnvelope) async {
     if (!ackEnvelope.isAck || ackEnvelope.originalMessageId == null) {
       return false;
@@ -346,11 +347,7 @@ class CryptoService {
       secretKey: pendingKey,
     );
 
-    final isMatch = _constantTimeCompare(expectedMac.bytes, ackEnvelope.mac);
-    if (isMatch) {
-      removePendingKey(originalId);
-    }
-    return isMatch;
+    return _constantTimeCompare(expectedMac.bytes, ackEnvelope.mac);
   }
 
   static bool _constantTimeCompare(List<int> a, List<int> b) {

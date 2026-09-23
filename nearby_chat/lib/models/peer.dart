@@ -7,6 +7,7 @@ class Peer {
   final String? safetyNumber;
   final bool isVerified;
   final bool isConnected;
+  final bool hasNameCollision;
 
   const Peer({
     required this.deviceId,
@@ -17,6 +18,7 @@ class Peer {
     this.safetyNumber,
     this.isVerified = false,
     this.isConnected = false,
+    this.hasNameCollision = false,
   });
 
   /// Short cryptographic identifier derived from the public key.
@@ -36,6 +38,7 @@ class Peer {
     bool clearSafetyNumber = false,
     bool? isVerified,
     bool? isConnected,
+    bool? hasNameCollision,
   }) {
     return Peer(
       deviceId: deviceId ?? this.deviceId,
@@ -46,6 +49,7 @@ class Peer {
       safetyNumber: clearSafetyNumber ? null : (safetyNumber ?? this.safetyNumber),
       isVerified: isVerified ?? this.isVerified,
       isConnected: isConnected ?? this.isConnected,
+      hasNameCollision: hasNameCollision ?? this.hasNameCollision,
     );
   }
 
@@ -59,6 +63,7 @@ class Peer {
       'safetyNumber': safetyNumber,
       'isVerified': isVerified,
       'isConnected': isConnected,
+      'hasNameCollision': hasNameCollision,
     };
   }
 
@@ -72,6 +77,7 @@ class Peer {
       safetyNumber: json['safetyNumber'] as String?,
       isVerified: json['isVerified'] as bool? ?? false,
       isConnected: json['isConnected'] as bool? ?? false,
+      hasNameCollision: json['hasNameCollision'] as bool? ?? false,
     );
   }
 

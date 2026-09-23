@@ -23,6 +23,14 @@ class ChatController extends ChangeNotifier {
   StreamSubscription<Peer>? _peerSub;
   StreamSubscription<ChatEnvelope>? _envelopeSub;
   Timer? _staleCheckTimer;
+  final Set<String> _earlyAcks = {};
+
+  void _recordEarlyAck(String messageId) {
+    if (_earlyAcks.length >= 100) {
+      _earlyAcks.remove(_earlyAcks.first);
+    }
+    _earlyAcks.add(messageId);
+  }
 
   ChatController({
     CryptoService? crypto,
@@ -81,10 +89,16 @@ class ChatController extends ChangeNotifier {
 
     _peerSub = _ble.onPeerDiscovered.listen((peer) async {
       // Key-name binding check: warn if the same name maps to a different key
+      bool nameCollision = false;
       for (final existing in _peers.values) {
         if (existing.username.toLowerCase() == peer.username.toLowerCase() &&
             existing.publicKey != peer.publicKey &&
             !existing.deviceId.startsWith('unpaired-')) {
+          nameCollision = true;
+          _peers[existing.deviceId] = existing.copyWith(hasNameCollision: true);
+          if (_activePeer?.deviceId == existing.deviceId) {
+            _activePeer = _peers[existing.deviceId];
+          }
           debugPrint('[ChatController] WARNING: Name collision or public key change for username "${peer.username}"');
         }
       }
@@ -95,6 +109,7 @@ class ChatController extends ChangeNotifier {
       final enrichedPeer = peer.copyWith(
         safetyNumber: safetyNumber,
         isVerified: isVerified,
+        hasNameCollision: nameCollision,
       );
 
       // Clean up any placeholder peer (e.g. unpaired-<fingerprint>) with matching public key
@@ -196,8 +211,19 @@ class ChatController extends ChangeNotifier {
 
     // 4. Transmit via BLE
     final success = await _ble.sendEnvelope(currentPeer.deviceId, envelope);
-    // Honest status: transition to 'sent' upon radio dispatch, or 'failed' if write errors out
-    final newStatus = success ? MessageStatus.sent : MessageStatus.failed;
+    
+    // Check if an authenticated ACK arrived while transmission was in-flight
+    final MessageStatus newStatus;
+    if (_earlyAcks.remove(messageId)) {
+      newStatus = MessageStatus.delivered;
+      _crypto.removePendingKey(messageId);
+      debugPrint('[ChatController] Early ACK resolved for message $messageId -> delivered');
+    } else {
+      newStatus = success ? MessageStatus.sent : MessageStatus.failed;
+      if (!success) {
+        _crypto.removePendingKey(messageId);
+      }
+    }
 
     await _storage.updateMessageStatus(messageId, currentPeer.fingerprint, newStatus);
     final idx = history.indexWhere((m) => m.id == messageId);
@@ -329,17 +355,31 @@ class ChatController extends ChangeNotifier {
           ? ackEnvelope.senderPublicKey.substring(0, 12)
           : ackEnvelope.senderPublicKey;
 
-      // Only transition if message is currently in 'sent' state
-      final history = _conversationHistory[senderFingerprint];
-      if (history != null) {
-        final idx = history.indexWhere((m) => m.id == originalId);
-        if (idx >= 0 && history[idx].status == MessageStatus.sent) {
-          final updated = history[idx].copyWith(status: MessageStatus.delivered);
+      var history = _conversationHistory[senderFingerprint];
+      if (history == null) {
+        history = _storage.getMessages(senderFingerprint);
+        _conversationHistory[senderFingerprint] = history;
+      }
+
+      final idx = history.indexWhere((m) => m.id == originalId);
+      if (idx >= 0) {
+        final msg = history[idx];
+        if (msg.status == MessageStatus.sending) {
+          // Early ACK arrived before sendEnvelope completed!
+          _recordEarlyAck(originalId);
+          debugPrint('[Controller] Early ACK recorded for in-flight message $originalId');
+        } else if (msg.status == MessageStatus.sent) {
+          final updated = msg.copyWith(status: MessageStatus.delivered);
           history[idx] = updated;
+          _crypto.removePendingKey(originalId);
           await _storage.updateMessageStatus(originalId, senderFingerprint, MessageStatus.delivered);
           notifyListeners();
           debugPrint('[Controller] Message $originalId confirmed delivered via authenticated ACK');
         }
+      } else {
+        // Message not found in history yet (e.g. in flight before history insertion)
+        _recordEarlyAck(originalId);
+        debugPrint('[Controller] Early ACK recorded (not in history yet) for message $originalId');
       }
     } catch (e) {
       debugPrint('[Controller] Error handling incoming ACK: $e');
@@ -360,8 +400,11 @@ class ChatController extends ChangeNotifier {
 
   @override
   void dispose() {
-    stopDiscovery().catchError((e) {
-      debugPrint('[ChatController] Error stopping discovery during dispose: $e');
+    _ble.stopScanning().catchError((e) {
+      debugPrint('[ChatController] Error stopping scan during dispose: $e');
+    });
+    _ble.stopAdvertising().catchError((e) {
+      debugPrint('[ChatController] Error stopping advertising during dispose: $e');
     });
     _peerSub?.cancel();
     _envelopeSub?.cancel();

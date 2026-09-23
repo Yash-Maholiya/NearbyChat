@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nearby_chat/models/chat_message.dart';
 import 'package:nearby_chat/services/storage_service.dart';
@@ -12,6 +13,7 @@ void main() {
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
       storage = await StorageService.create();
     });
 

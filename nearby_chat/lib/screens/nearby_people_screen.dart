@@ -257,13 +257,42 @@ class _NearbyPeopleScreenState extends State<NearbyPeopleScreen> {
           ),
           title: Row(
             children: [
-              Text(
-                peer.username,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+              Flexible(
+                child: Text(
+                  peer.username,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+                ),
               ),
               if (peer.isVerified) ...[
                 const SizedBox(width: 6),
                 const Icon(Icons.verified, size: 16, color: Color(0xFF10B981)),
+              ],
+              if (peer.hasNameCollision) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7F1D1D),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFEF4444), width: 1),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 12, color: Color(0xFFFCA5A5)),
+                      SizedBox(width: 3),
+                      Text(
+                        'Collision',
+                        style: TextStyle(
+                          color: Color(0xFFFCA5A5),
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ],
           ),

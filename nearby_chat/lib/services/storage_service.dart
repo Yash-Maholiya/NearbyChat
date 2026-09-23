@@ -57,8 +57,11 @@ class StorageService {
       );
       return newKey;
     } catch (e) {
-      debugPrint('[StorageService] SecureStorage notice: $e. Using fallback key.');
-      return AesGcm.with256bits().newSecretKey();
+      debugPrint('[StorageService] Critical error accessing SecureStorage: $e');
+      throw StateError(
+        'Failed to securely retrieve or persist encryption key: $e. '
+        'Refusing to initialize with a temporary unpersisted key to prevent permanent message history loss.',
+      );
     }
   }
 

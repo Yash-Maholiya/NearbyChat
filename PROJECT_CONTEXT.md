@@ -137,7 +137,7 @@ Standard BLE ATT MTU guarantees as low as **23 bytes** (3 bytes ATT header + 20 
   The receiver’s `FrameReassembler` buffers frames indexed by `MessageID`. Once all `TotalFrames` are collected, the payload is concatenated and passed to the crypto decoding pipeline.
 
 ### 4.3. End-to-End Cryptographic Protocol
-NearbyChat enforces zero-server key exchange with Perfect Forward Secrecy (PFS):
+NearbyChat enforces zero-server key exchange with Perfect Forward Secrecy (PFS) under **Protocol Version 2**:
 1. **Static Identity Key Generation (Once on Install):**
    - Device generates an **X25519** static identity keypair via the Dart `cryptography` package.
    - Private key is stored securely in **Android Keystore** or **iOS Keychain** via `flutter_secure_storage`.
@@ -150,24 +150,34 @@ NearbyChat enforces zero-server key exchange with Perfect Forward Secrecy (PFS):
    - Message key derivation via **HKDF-SHA256**:
      $$\text{messageKey} = \text{HKDF}(\text{IKM}=\text{pfsSecret}, \text{salt}=\text{"nearbychat-pfs-v1"}, \text{info}=\text{messageId})$$
    - $e_{\text{priv}}$ is wiped from memory immediately after encryption.
-4. **Authenticated Encryption (AES-GCM-256) & AAD:**
+4. **Authenticated Encryption (AES-GCM-256) & Protocol v2 AAD:**
    - Plaintext message is encrypted with `messageKey` using **AES-GCM-256** with a 12-byte unique random nonce.
-   - Additional Authenticated Data (AAD) cryptographically binds:
-     $$\text{AAD} = \text{version} \parallel \text{messageId} \parallel \text{senderUsername} \parallel \text{senderPub} \parallel \text{recipientPub} \parallel \text{ephemeralPub} \parallel \text{timestamp}$$
-   - This ensures intermediate relays or transport layers cannot alter message headers or usernames in transit without failing MAC authentication.
+   - Additional Authenticated Data (AAD) cryptographically binds all envelope metadata:
+     $$\text{AAD} = \text{version (v2)} \parallel \text{messageId} \parallel \text{senderUsername} \parallel \text{senderPub} \parallel \text{recipientPub} \parallel \text{ephemeralPub} \parallel \text{timestamp} \parallel \text{isAck} \parallel \text{originalMessageId}$$
+   - This prevents intermediate relays or eavesdroppers from altering envelope headers, flags, or claimed usernames in transit without failing MAC verification.
 5. **Anti-Spoofing & Sender Identity Resolution:**
    - Display names are resolved strictly from local peer storage by `senderPublicKey`.
-   - Incoming messages from unknown public keys are labeled as `Unverified (<fingerprint>)`, preventing arbitrary username impersonation.
-6. **Authenticated Delivery Receipts (HMAC-SHA256 ACKs):**
-   - Recipient computes $\text{HMAC-SHA256}(\text{messageKey}, \text{"ack:"} \parallel \text{messageId})$ and transmits an ACK envelope.
+   - Incoming messages from unknown public keys are labeled as `Unverified (<fingerprint>)`, preventing arbitrary username impersonation even if an attacker crafts an envelope with an arbitrary `senderUsername`.
+   - If two peers in BLE range advertise the same display name with differing public keys, the system flags a **Name Collision** warning badge in both the peer list and chat view.
+6. **Cryptographically Authenticated Delivery Receipts (HMAC-SHA256 ACKs):**
+   - Recipient computes $\text{HMAC-SHA256}(\text{messageKey}, \text{"ack:"} \parallel \text{originalMessageId})$ and transmits an ACK envelope (`isAck: true`).
+   - Because only the true recipient possessing the corresponding static private key can derive `messageKey`, third-party BLE eavesdroppers cannot forge delivery receipts.
    - Sender verifies the HMAC against the retained message key before transitioning status from `sent` to `delivered`.
-   - ACKs are never ACKed (preventing loops) and only apply to messages in the `sent` state.
+   - Early ACKs arriving while the sender's BLE radio transmission is still in flight are buffered in an `_earlyAcks` set to prevent state desynchronization races.
 7. **Mutual Safety Number Verification (Out-of-Band MITM Defense):**
    - Derived exclusively from the static-static identity secret and lexicographically sorted raw public keys:
      $$\text{staticSecret} = \text{X25519}(\text{staticPriv}_{\text{local}}, \text{staticPub}_{\text{remote}})$$
      $$\text{sortedKeys} = \min(pk_{\text{local}}, pk_{\text{remote}}) \parallel \max(pk_{\text{local}}, pk_{\text{remote}})$$
      $$\text{safetyNumber} = \text{Truncate}_{6\text{-bytes}}(\text{HKDF}(\text{IKM}=\text{staticSecret}, \text{salt}=\text{"nearbychat-safety-v1"}, \text{info}=\text{sortedKeys}))$$
    - Both users compare this 6-byte hex sequence visually in person. If cryptographic derivation fails, the session displays an explicit error state and disables verification.
+
+### 4.3.1. Protocol Security Limitations & Trade-offs
+1. **PFS Post-Restart ACK Loss:**  
+   To preserve forward secrecy, ephemeral `messageKey` instances retained for verifying incoming HMAC ACKs are stored strictly in volatile RAM with a 5-minute timeout and 200-key LRU cap. If the app process terminates before an ACK is received, unverified ACKs received after app restart cannot be validated against the wiped key, leaving the message status at `sent`. Ephemeral keys are intentionally never persisted to non-volatile flash storage.
+2. **Plaintext `originalMessageId` in ACK Headers:**  
+   The `originalMessageId` is transmitted in the clear within the ACK envelope header to allow the sender to locate the corresponding pending message key in memory. While delivery authenticity is cryptographically guaranteed by HMAC, passive eavesdroppers observing both outgoing messages and incoming ACKs can correlate message receipts to message transmissions via this plaintext identifier (traffic correlation limitation).
+3. **AAD vs. Impersonation Defense Boundary:**  
+   AES-GCM AAD prevents in-transit tampering of `senderUsername`, but cannot prevent an adversary from authoring a new message using their own key with an arbitrary claimed name. Hence, trust is never anchored to `envelope.senderUsername`; the client controller and UI bind display names strictly to local public keys.
 
 ### 4.4. Persistent Storage Strategy
 - **Identity & Secrets (`flutter_secure_storage`):**

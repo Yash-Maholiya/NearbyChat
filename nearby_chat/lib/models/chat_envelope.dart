@@ -16,7 +16,7 @@ class ChatEnvelope {
   final String? originalMessageId;
 
   const ChatEnvelope({
-    this.version = 1,
+    this.version = 2,
     required this.messageId,
     required this.senderUsername,
     required this.senderPublicKey,
@@ -56,7 +56,7 @@ class ChatEnvelope {
 
   factory ChatEnvelope.fromJson(Map<String, dynamic> json) {
     return ChatEnvelope(
-      version: json['v'] as int? ?? 1,
+      version: json['v'] as int? ?? 2,
       messageId: json['id'] as String,
       senderUsername: json['u'] as String,
       senderPublicKey: json['spk'] as String,

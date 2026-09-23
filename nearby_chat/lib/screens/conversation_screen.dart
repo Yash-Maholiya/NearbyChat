@@ -214,6 +214,25 @@ class _ConversationScreenState extends State<ConversationScreen> {
             ),
           ),
 
+          if (currentPeer.hasNameCollision)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              color: const Color(0xFF450A0A),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Warning: Multiple peers nearby share this username with differing public keys. Verify identity using Safety Number.',
+                      style: TextStyle(color: Color(0xFFFCA5A5), fontSize: 11, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Messages list
           Expanded(
             child: messages.isEmpty

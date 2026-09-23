@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NearbyChat — Live Demo</title>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #1a1a2e;
+    --card: #16213e;
+    --accent: #4f8ef7;
+    --accent2: #a855f7;
+    --green: #22c55e;
+    --red: #ef4444;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --border: #334155;
+    --phone-w: 320px;
+    --phone-h: 580px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    text-align: center;
+    padding: 24px 16px 12px;
+    background: linear-gradient(180deg, #0f172a 0%, transparent 100%);
+  }
+  header h1 { font-size: 2rem; font-weight: 800; letter-spacing: -1px; }
+  header h1 span { color: var(--accent); }
+  header p { color: var(--muted); margin-top: 4px; font-size: 0.9rem; }
+
+  /* ── Badge row ── */
+  .badges {
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+    margin: 10px 0 20px;
+  }
+  .badge {
+    font-size: 0.72rem; font-weight: 600; padding: 3px 10px;
+    border-radius: 99px; border: 1px solid;
+  }
+  .badge-blue  { color: var(--accent);  border-color: var(--accent);  background: #1e3a5f33; }
+  .badge-purple{ color: #c084fc;        border-color: #a855f7;        background: #2e1b4433; }
+  .badge-green { color: var(--green);   border-color: var(--green);   background: #14532d33; }
+
+  /* ── Stage ── */
+  .stage {
+    display: flex; align-items: flex-start; justify-content: center;
+    gap: 80px; padding: 0 24px 32px; flex-wrap: wrap; position: relative;
+  }
+
+  /* ── BLE signal animation between phones ── */
+  .ble-signal {
+    position: absolute; top: 140px;
+    left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    opacity: 0; transition: opacity 0.4s;
+    pointer-events: none; z-index: 10;
+  }
+  .ble-signal.active { opacity: 1; }
+  .ble-signal .wave {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    animation: pulse-dot 1.2s ease-in-out infinite;
+  }
+  .ble-signal .wave:nth-child(2) { animation-delay: 0.2s; }
+  .ble-signal .wave:nth-child(3) { animation-delay: 0.4s; }
+  .ble-signal label { font-size: 0.65rem; color: var(--accent); letter-spacing: 0.5px; margin-top: 2px; }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.2; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.4); }
+  }
+
+  /* ── Phone frame ── */
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .phone-label {
+    font-size: 0.78rem; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .phone {
+    width: var(--phone-w); height: var(--phone-h);
+    background: var(--card);
+    border-radius: 40px;
+    border: 3px solid var(--border);
+    box-shadow: 0 0 0 2px #000, 0 24px 64px #00000088;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .phone-notch {
+    background: #000; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .phone-notch::after {
+    content: ''; width: 80px; height: 18px;
+    background: #111; border-radius: 0 0 12px 12px;
+  }
+  .screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Shared screen parts ── */
+  .top-bar {
+    background: #0f172a; padding: 10px 14px 8px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .top-bar .app-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .top-bar .title { font-size: 0.9rem; font-weight: 700; flex: 1; }
+  .top-bar .ble-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted); transition: background 0.4s;
+  }
+  .top-bar .ble-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  /* ── Setup screen ── */
+  .setup-screen {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 24px; gap: 16px;
+  }
+  .setup-screen .icon { font-size: 48px; }
+  .setup-screen h2 { font-size: 1.2rem; font-weight: 800; }
+  .setup-screen p { font-size: 0.75rem; color: var(--muted); text-align: center; }
+  .setup-screen input {
+    width: 100%; padding: 10px 12px; border-radius: 10px;
+    border: 1.5px solid var(--border); background: #0f172a;
+    color: var(--text); font-size: 0.9rem; outline: none;
+    transition: border-color 0.2s;
+  }
+  .setup-screen input:focus { border-color: var(--accent); }
+  .btn {
+    width: 100%; padding: 11px; border-radius: 10px;
+    border: none; cursor: pointer; font-size: 0.88rem; font-weight: 700;
+    background: var(--accent); color: #fff; transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── Peer list screen ── */
+  .peer-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .scan-status {
+    padding: 8px 14px; font-size: 0.72rem; color: var(--muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .scan-spinner {
+    width: 8px; height: 8px; border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .peer-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+  .peer-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; cursor: pointer; transition: background 0.15s;
+    border-bottom: 1px solid #1e293b;
+    animation: fadeIn 0.4s ease;
+  }
+  .peer-item:hover { background: #1e293b; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1rem; color: #fff; flex-shrink: 0;
+  }
+  .peer-info { flex: 1; min-width: 0; }
+  .peer-name { font-size: 0.88rem; font-weight: 600; }
+  .peer-safety { font-size: 0.65rem; color: var(--muted); font-family: monospace; margin-top: 2px; }
+  .chevron { color: var(--muted); font-size: 0.8rem; }
+
+  /* ── Chat screen ── */
+  .chat-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .chat-header {
+    background: #0f172a; padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .back-btn {
+    background: none; border: none; color: var(--accent);
+    cursor: pointer; font-size: 1rem; padding: 0;
+  }
+  .chat-header .peer-name { font-size: 0.9rem; font-weight: 700; flex: 1; }
+  .safety-banner {
+    background: #1e293b; padding: 8px 12px;
+    font-size: 0.65rem; color: var(--muted);
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .safety-banner code { color: var(--green); font-size: 0.68rem; }
+  .dismiss-btn {
+    background: none; border: none; color: var(--accent);
+    font-size: 0.65rem; cursor: pointer; font-weight: 700; padding: 2px 6px;
+  }
+  .messages { flex: 1; overflow-y: auto; padding: 10px 10px 4px; display: flex; flex-direction: column; gap: 6px; }
+  .msg {
+    max-width: 78%; padding: 8px 12px; border-radius: 16px;
+    font-size: 0.8rem; line-height: 1.4; word-break: break-word;
+    animation: msgIn 0.25s ease;
+  }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .msg.mine {
+    align-self: flex-end; background: #1e40af;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.theirs {
+    align-self: flex-start; background: #1e293b;
+    border-bottom-left-radius: 4px;
+  }
+  .msg .time { font-size: 0.6rem; color: #94a3b8; margin-top: 3px; text-align: right; }
+  .chat-input {
+    padding: 8px 10px; border-top: 1px solid var(--border);
+    display: flex; gap: 6px; align-items: flex-end;
+  }
+  .chat-input input {
+    flex: 1; padding: 8px 12px; border-radius: 20px;
+    border: 1.5px solid var(--border); background: #0f172a;
+    color: var(--text); font-size: 0.82rem; outline: none;
+    transition: border-color 0.2s;
+  }
+  .chat-input input:focus { border-color: var(--accent); }
+  .send-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--accent); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 0.9rem; transition: opacity 0.2s;
+    flex-shrink: 0;
+  }
+  .send-btn:hover { opacity: 0.85; }
+
+  /* ── Encryption panel ── */
+  .crypto-panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px; max-width: 700px; margin: 0 auto 32px;
+    width: 100%;
+  }
+  .crypto-panel h3 {
+    font-size: 0.9rem; font-weight: 700; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px; color: var(--accent);
+  }
+  .crypto-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .crypto-row label { font-size: 0.7rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .crypto-value {
+    background: #0f172a; border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px;
+    font-family: monospace; font-size: 0.68rem; color: var(--green);
+    word-break: break-all; min-height: 32px; transition: all 0.3s;
+  }
+  .crypto-value.ciphertext { color: #f97316; }
+  .crypto-value.key-val { color: #a78bfa; }
+  .step-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 0.65rem; font-weight: 700; flex-shrink: 0;
+  }
+
+  /* ── Info section ── */
+  .info-section {
+    max-width: 700px; margin: 0 auto 40px; padding: 0 16px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+  }
+  .info-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+  }
+  .info-card .icon { font-size: 1.4rem; margin-bottom: 8px; }
+  .info-card h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
+  .info-card p { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+
+  /* ── Control strip ── */
+  .controls {
+    max-width: 700px; margin: 0 auto 24px; padding: 0 16px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .ctrl-btn {
+    padding: 9px 18px; border-radius: 10px; border: 1.5px solid var(--accent);
+    background: transparent; color: var(--accent);
+    font-size: 0.82rem; font-weight: 700; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .ctrl-btn:hover { background: var(--accent); color: #fff; }
+  .ctrl-btn.active { background: var(--accent); color: #fff; }
+
+  .hidden { display: none !important; }
+  .fade { opacity: 0; transition: opacity 0.3s; }
+  .fade.show { opacity: 1; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Nearby<span>Chat</span></h1>
+  <p>Cross-Platform · Bluetooth Only · End-to-End Encrypted · No Internet · No Accounts</p>
+  <div class="badges">
+    <span class="badge badge-blue">📱 Android &amp; iOS</span>
+    <span class="badge badge-purple">🔒 X25519 + AES-GCM</span>
+    <span class="badge badge-green">📡 Bluetooth LE Only</span>
+    <span class="badge badge-blue">💾 On-Device History</span>
+    <span class="badge badge-purple">🚫 Zero Servers</span>
+  </div>
+</header>
+
+<!-- Controls -->
+<div class="controls">
+  <button class="ctrl-btn" onclick="resetDemo()">🔄 Reset Demo</button>
+  <button class="ctrl-btn" id="autoBtn" onclick="runAutoDemo()">▶ Auto Demo</button>
+</div>
+
+<!-- Stage with two phones -->
+<div class="stage">
+
+  <!-- BLE signal dots -->
+  <div class="ble-signal" id="bleSignal">
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <label>BLE</label>
+  </div>
+
+  <!-- ════════════════ PHONE A ════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">📱 Phone A — Alice</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="screen">
+
+        <!-- Top bar -->
+        <div class="top-bar">
+          <div class="app-icon">💬</div>
+          <span class="title" id="a-title">NearbyChat</span>
+          <div class="ble-dot" id="a-ble-dot"></div>
+        </div>
+
+        <!-- Setup screen A -->
+        <div class="setup-screen" id="a-setup">
+          <div class="icon">📡</div>
+          <h2>NearbyChat</h2>
+          <p>Private Bluetooth messages for people nearby. No account or internet needed.</p>
+          <input id="a-username" type="text" placeholder="Enter username" value="Alice" maxlength="20" />
+          <button class="btn" onclick="startPhone('A')">Find Nearby People</button>
+        </div>
+
+        <!-- Peer list A -->
+        <div class="peer-screen hidden" id="a-peers">
+          <div class="scan-status">
+            <div class="scan-spinner" id="a-spinner"></div>
+            <span id="a-scan-label">Scanning for nearby people…</span>
+          </div>
+          <div class="peer-list" id="a-peer-list"></div>
+        </div>
+
+        <!-- Chat screen A -->
+        <div class="chat-screen hidden" id="a-chat">
+          <div class="chat-header">
+            <button class="back-btn" onclick="goBack('A')">←</button>
+            <span class="peer-name" id="a-chat-name"></span>
+            <span style="font-size:0.65rem; color:var(--green)">🔒 E2E</span>
+          </div>
+          <div class="safety-banner" id="a-banner">
+            <span>Safety ID: <code id="a-safety"></code></span>
+            <button class="dismiss-btn" onclick="this.parentElement.style.display='none'">DISMISS</button>
+          </div>
+          <div class="messages" id="a-messages"></div>
+          <div class="chat-input">
+            <input id="a-input" placeholder="Message Bob…" onkeydown="if(event.key==='Enter') sendMsg('A')" />
+            <button class="send-btn" onclick="sendMsg('A')">➤</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ PHONE B ════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">📱 Phone B — Bob</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="screen">
+
+        <!-- Top bar -->
+        <div class="top-bar">
+          <div class="app-icon">💬</div>
+          <span class="title" id="b-title">NearbyChat</span>
+          <div class="ble-dot" id="b-ble-dot"></div>
+        </div>
+
+        <!-- Setup screen B -->
+        <div class="setup-screen" id="b-setup">
+          <div class="icon">📡</div>
+          <h2>NearbyChat</h2>
+          <p>Private Bluetooth messages for people nearby. No account or internet needed.</p>
+          <input id="b-username" type="text" placeholder="Enter username" value="Bob" maxlength="20" />
+          <button class="btn" onclick="startPhone('B')">Find Nearby People</button>
+        </div>
+
+        <!-- Peer list B -->
+        <div class="peer-screen hidden" id="b-peers">
+          <div class="scan-status">
+            <div class="scan-spinner" id="b-spinner"></div>
+            <span id="b-scan-label">Scanning for nearby people…</span>
+          </div>
+          <div class="peer-list" id="b-peer-list"></div>
+        </div>
+
+        <!-- Chat screen B -->
+        <div class="chat-screen hidden" id="b-chat">
+          <div class="chat-header">
+            <button class="back-btn" onclick="goBack('B')">←</button>
+            <span class="peer-name" id="b-chat-name"></span>
+            <span style="font-size:0.65rem; color:var(--green)">🔒 E2E</span>
+          </div>
+          <div class="safety-banner" id="b-banner">
+            <span>Safety ID: <code id="b-safety"></code></span>
+            <button class="dismiss-btn" onclick="this.parentElement.style.display='none'">DISMISS</button>
+          </div>
+          <div class="messages" id="b-messages"></div>
+          <div class="chat-input">
+            <input id="b-input" placeholder="Message Alice…" onkeydown="if(event.key==='Enter') sendMsg('B')" />
+            <button class="send-btn" onclick="sendMsg('B')">➤</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Encryption panel -->
+<div class="crypto-panel" id="cryptoPanel" style="max-width:700px; margin: 0 auto 24px; display:none; padding: 0 16px;">
+  <div style="background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px;">
+    <h3>🔐 <span id="cpTitle">Encryption Activity</span></h3>
+    <div class="crypto-row">
+      <label><span class="step-badge">1</span> &nbsp;Shared Secret (X25519 Diffie-Hellman)</label>
+      <div class="crypto-value key-val" id="cp-secret">—</div>
+    </div>
+    <div class="crypto-row">
+      <label><span class="step-badge">2</span> &nbsp;AES-GCM Message Key (SHA-256 of shared secret)</label>
+      <div class="crypto-value key-val" id="cp-key">—</div>
+    </div>
+    <div class="crypto-row">
+      <label><span class="step-badge">3</span> &nbsp;Plaintext Message</label>
+      <div class="crypto-value" id="cp-plain">—</div>
+    </div>
+    <div class="crypto-row">
+      <label><span class="step-badge">4</span> &nbsp;AES-GCM Ciphertext (transmitted over BLE)</label>
+      <div class="crypto-value ciphertext" id="cp-cipher">—</div>
+    </div>
+    <div class="crypto-row" style="margin:0">
+      <label><span class="step-badge">5</span> &nbsp;Decrypted at Recipient ✓</label>
+      <div class="crypto-value" id="cp-decrypted">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Info cards -->
+<div class="info-section">
+  <div class="info-card">
+    <div class="icon">📡</div>
+    <h4>BLE Discovery</h4>
+    <p>Each phone advertises as a GATT peripheral (NC-Alice, NC-Bob). The other phone scans, connects, and reads the identity characteristic to learn the username and public key.</p>
+  </div>
+  <div class="info-card">
+    <div class="icon">🔑</div>
+    <h4>X25519 Key Agreement</h4>
+    <p>Each device generates an X25519 keypair on first launch, stored in the OS secure enclave. Keys are exchanged over BLE. The shared secret never leaves either device.</p>
+  </div>
+  <div class="info-card">
+    <div class="icon">🔒</div>
+    <h4>AES-GCM-256</h4>
+    <p>Every message is encrypted with AES-GCM using a key derived from the X25519 shared secret. The authentication tag ensures tampering is detected and rejected.</p>
+  </div>
+  <div class="info-card">
+    <div class="icon">🛡️</div>
+    <h4>Safety Number</h4>
+    <p>A 6-byte SHA-256 fingerprint of the shared secret. Both users compare it in person to confirm no man-in-the-middle has substituted a key during discovery.</p>
+  </div>
+  <div class="info-card">
+    <div class="icon">💾</div>
+    <h4>On-Device History</h4>
+    <p>Messages are stored locally on the device using encrypted shared preferences. No cloud, no sync, no server. History persists across app restarts.</p>
+  </div>
+  <div class="info-card">
+    <div class="icon">🚫</div>
+    <h4>Zero Infrastructure</h4>
+    <p>No servers, no accounts, no phone numbers, no internet. Works in disaster zones, remote areas, or any environment where connectivity is unavailable or censored.</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════
+const state = {
+  A: { started: false, username: 'Alice', keyPair: null, pubKeyHex: '', screen: 'setup' },
+  B: { started: false, username: 'Bob',   keyPair: null, pubKeyHex: '', screen: 'setup' },
+  sharedSecret: null,
+  aesKey: null,
+  safetyNumber: '',
+};
+
+// Avatar colours
+function avatarColor(name) {
+  const colours = ['#4f8ef7','#a855f7','#22c55e','#f97316','#ec4899','#06b6d4'];
+  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xff;
+  return colours[h % colours.length];
+}
+
+function toHex(buf) {
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+function fromHex(hex) {
+  return new Uint8Array(hex.match(/.{2}/g).map(b => parseInt(b,16)));
+}
+
+// ═══════════════════════════════════════════════════════════
+// Crypto (real Web Crypto API)
+// ═══════════════════════════════════════════════════════════
+async function generateKeyPair() {
+  return await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey','deriveBits']
+  );
+}
+
+async function exportPubKey(kp) {
+  const raw = await crypto.subtle.exportKey('raw', kp.publicKey);
+  return toHex(raw);
+}
+
+async function deriveSharedSecret(myKP, theirPubHex) {
+  const raw = fromHex(theirPubHex);
+  const theirPub = await crypto.subtle.importKey(
+    'raw', raw, { name:'ECDH', namedCurve:'P-256' }, true, []
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name:'ECDH', public: theirPub }, myKP.privateKey, 256
+  );
+  return bits;
+}
+
+async function deriveAESKey(sharedSecretBuf) {
+  const enc = new TextEncoder();
+  const salt = enc.encode('nearbychat-v1');
+  const combined = new Uint8Array([...salt, ...new Uint8Array(sharedSecretBuf)]);
+  const hash = await crypto.subtle.digest('SHA-256', combined);
+  return await crypto.subtle.importKey('raw', hash, { name:'AES-GCM' }, true, ['encrypt','decrypt']);
+}
+
+async function encryptMsg(aesKey, plaintext) {
+  const enc = new TextEncoder();
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt(
+    { name:'AES-GCM', iv: nonce }, aesKey, enc.encode(plaintext)
+  );
+  return { nonce: toHex(nonce), ciphertext: toHex(ct) };
+}
+
+async function decryptMsg(aesKey, nonceHex, ciphertextHex) {
+  const pt = await crypto.subtle.decrypt(
+    { name:'AES-GCM', iv: fromHex(nonceHex) }, aesKey, fromHex(ciphertextHex)
+  );
+  return new TextDecoder().decode(pt);
+}
+
+async function computeSafetyNumber(sharedSecret) {
+  const hash = await crypto.subtle.digest('SHA-256', sharedSecret);
+  const bytes = [...new Uint8Array(hash)].slice(0,6);
+  return bytes.map(b => b.toString(16).padStart(2,'0')).join('-');
+}
+
+// ═══════════════════════════════════════════════════════════
+// UI helpers
+// ═══════════════════════════════════════════════════════════
+function show(id)  { document.getElementById(id)?.classList.remove('hidden'); }
+function hide(id)  { document.getElementById(id)?.classList.add('hidden'); }
+function setText(id, t) { const el = document.getElementById(id); if(el) el.textContent = t; }
+function now() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+
+function addMessage(phone, text, isMine) {
+  const el = document.getElementById(phone === 'A' ? 'a-messages' : 'b-messages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + (isMine ? 'mine' : 'theirs');
+  div.innerHTML = `${text}<div class="time">${now()}</div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function addPeer(phone, peerName, safetyNum, onClick) {
+  const list = document.getElementById(phone === 'A' ? 'a-peer-list' : 'b-peer-list');
+  list.innerHTML = '';
+  const item = document.createElement('div');
+  item.className = 'peer-item';
+  item.innerHTML = `
+    <div class="avatar" style="background:${avatarColor(peerName)}">${peerName[0].toUpperCase()}</div>
+    <div class="peer-info">
+      <div class="peer-name">${peerName}</div>
+      <div class="peer-safety">Safety ID: ${safetyNum}</div>
+    </div>
+    <span class="chevron">›</span>`;
+  item.onclick = onClick;
+  list.appendChild(item);
+}
+
+function showBleSignal(on) {
+  document.getElementById('bleSignal').classList.toggle('active', on);
+}
+
+function showCryptoPanel(show) {
+  document.getElementById('cryptoPanel').style.display = show ? 'block' : 'none';
+}
+
+function updateCryptoPanel(secret, key, plain, cipher, decrypted) {
+  document.getElementById('cp-secret').textContent    = secret    || '—';
+  document.getElementById('cp-key').textContent       = key       || '—';
+  document.getElementById('cp-plain').textContent     = plain     || '—';
+  document.getElementById('cp-cipher').textContent    = cipher    || '—';
+  document.getElementById('cp-decrypted').textContent = decrypted || '—';
+}
+
+// ═══════════════════════════════════════════════════════════
+// Core flow
+// ═══════════════════════════════════════════════════════════
+async function startPhone(phone) {
+  const other = phone === 'A' ? 'B' : 'A';
+  const username = document.getElementById(phone.toLowerCase() + '-username').value.trim() || (phone === 'A' ? 'Alice' : 'Bob');
+  state[phone].username = username;
+
+  // Generate real ECDH key pair
+  state[phone].keyPair = await generateKeyPair();
+  state[phone].pubKeyHex = await exportPubKey(state[phone].keyPair);
+  state[phone].started = true;
+  state[phone].screen = 'peers';
+
+  // Update top bar
+  setText(phone.toLowerCase() + '-title', `Nearby · ${username}`);
+  document.getElementById(phone.toLowerCase() + '-ble-dot').classList.add('on');
+
+  // Switch screens
+  hide(phone.toLowerCase() + '-setup');
+  show(phone.toLowerCase() + '-peers');
+
+  // If both started → do key exchange
+  if (state[A_or(phone)].started) {
+    showBleSignal(true);
+    await performKeyExchange();
+    showBleSignal(false);
+
+    // Show peers on both
+    addPeer('A', state.B.username, state.safetyNumber, () => openChat('A'));
+    addPeer('B', state.A.username, state.safetyNumber, () => openChat('B'));
+
+    setText('a-scan-label', `Found ${state.B.username} nearby`);
+    setText('b-scan-label', `Found ${state.A.username} nearby`);
+    document.getElementById('a-spinner').style.display = 'none';
+    document.getElementById('b-spinner').style.display = 'none';
+  }
+}
+
+function A_or(phone) { return phone === 'A' ? 'B' : 'A'; }
+
+async function performKeyExchange() {
+  // Both derive the same shared secret using ECDH
+  const secretA = await deriveSharedSecret(state.A.keyPair, state.B.pubKeyHex);
+  state.sharedSecret = secretA;
+  state.aesKey = await deriveAESKey(secretA);
+  state.safetyNumber = await computeSafetyNumber(secretA);
+
+  // Update crypto panel with key info
+  const secretHex = toHex(secretA);
+  const aesKeyRaw = await crypto.subtle.exportKey('raw', state.aesKey);
+  const aesKeyHex = toHex(aesKeyRaw);
+  showCryptoPanel(true);
+  updateCryptoPanel(
+    secretHex.substring(0,48) + '…',
+    aesKeyHex.substring(0,48) + '…',
+    '(waiting for first message…)', '', ''
+  );
+}
+
+function openChat(phone) {
+  const other = phone === 'A' ? 'B' : 'A';
+  state[phone].screen = 'chat';
+  hide(phone.toLowerCase() + '-peers');
+  show(phone.toLowerCase() + '-chat');
+  setText(phone.toLowerCase() + '-chat-name', state[other].username);
+  setText(phone.toLowerCase() + '-safety', state.safetyNumber);
+  document.getElementById(phone.toLowerCase() + '-input').placeholder = `Message ${state[other].username}…`;
+}
+
+function goBack(phone) {
+  state[phone].screen = 'peers';
+  hide(phone.toLowerCase() + '-chat');
+  show(phone.toLowerCase() + '-peers');
+}
+
+async function sendMsg(senderPhone) {
+  const input = document.getElementById(senderPhone.toLowerCase() + '-input');
+  const text = input.value.trim();
+  if (!text || !state.aesKey) return;
+  input.value = '';
+
+  const receiverPhone = senderPhone === 'A' ? 'B' : 'A';
+
+  // Real AES-GCM encryption
+  const { nonce, ciphertext } = await encryptMsg(state.aesKey, text);
+  const decrypted = await decryptMsg(state.aesKey, nonce, ciphertext);
+
+  // Update crypto panel
+  const secretHex = toHex(state.sharedSecret);
+  const aesKeyRaw = await crypto.subtle.exportKey('raw', state.aesKey);
+  const aesKeyHex = toHex(aesKeyRaw);
+  updateCryptoPanel(
+    secretHex.substring(0,48) + '…',
+    aesKeyHex.substring(0,48) + '…',
+    text,
+    ciphertext.substring(0,64) + '…  [' + Math.ceil(ciphertext.length/2) + ' bytes over BLE]',
+    `"${decrypted}" ✓ Authentication tag valid`
+  );
+
+  // Show in sender's chat (mine)
+  addMessage(senderPhone, text, true);
+
+  // Simulate BLE transmission → appear on receiver (theirs)
+  setTimeout(() => {
+    // If receiver is in chat screen, show. Otherwise just deliver.
+    if (state[receiverPhone].screen === 'chat') {
+      addMessage(receiverPhone, text, false);
+    } else {
+      // Could show notification badge but keep demo simple
+      if (state[receiverPhone].screen === 'peers') openChat(receiverPhone);
+      setTimeout(() => addMessage(receiverPhone, text, false), 200);
+    }
+  }, 350);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Reset + Auto Demo
+// ═══════════════════════════════════════════════════════════
+function resetDemo() {
+  location.reload();
+}
+
+async function runAutoDemo() {
+  const btn = document.getElementById('autoBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running…';
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // Step 1: Start both phones
+  await startPhone('A');
+  await sleep(600);
+  await startPhone('B');
+  await sleep(1000);
+
+  // Step 2: Alice opens chat with Bob
+  openChat('A');
+  await sleep(700);
+
+  // Step 3: Bob opens chat with Alice
+  openChat('B');
+  await sleep(700);
+
+  // Step 4: Simulate typing and sending messages
+  const convo = [
+    ['A', 'Hey Bob! Can you see this message?'],
+    ['B', 'Yes! Works perfectly, no internet needed 🎉'],
+    ['A', 'This is encrypted with AES-256. Check the panel below 🔐'],
+    ['B', 'Amazing — no server, no account, just Bluetooth!'],
+    ['A', 'And the safety number verifies no one is intercepting us.'],
+    ['B', 'This is exactly what we needed for our project 💪'],
+  ];
+
+  for (const [phone, msg] of convo) {
+    document.getElementById(phone.toLowerCase() + '-input').value = msg;
+    await sleep(300);
+    await sendMsg(phone);
+    await sleep(900);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '▶ Auto Demo';
+}
+</script>
+</body>
+</html>

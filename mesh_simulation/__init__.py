@@ -1,0 +1,3 @@
+"""
+NearbyChat Mesh Simulation Package
+"""

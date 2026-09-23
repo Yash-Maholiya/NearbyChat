@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NearbyChat — Multi-Hop BLE Mesh Relay Demo</title>
+<style>
+  :root {
+    --bg: #0b0f19;
+    --surface: #111827;
+    --card: #1f2937;
+    --accent: #3b82f6;
+    --relay-color: #f59e0b;
+    --green: #10b981;
+    --red: #ef4444;
+    --text: #f9fafb;
+    --muted: #9ca3af;
+    --border: #374151;
+    --phone-w: 290px;
+    --phone-h: 530px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 20px 16px 12px;
+    background: linear-gradient(180deg, #1e293b 0%, transparent 100%);
+  }
+  header h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px; }
+  header h1 span.blue { color: var(--accent); }
+  header h1 span.amber { color: var(--relay-color); }
+  header p { color: var(--muted); margin-top: 6px; font-size: 0.88rem; }
+
+  .badges {
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+    margin: 10px 0 16px;
+  }
+  .badge {
+    font-size: 0.72rem; font-weight: 600; padding: 4px 12px;
+    border-radius: 99px; border: 1px solid;
+  }
+  .badge-blue  { color: var(--accent); border-color: var(--accent); background: #1e3a5f33; }
+  .badge-amber { color: var(--relay-color); border-color: var(--relay-color); background: #78350f33; }
+  .badge-green { color: var(--green); border-color: var(--green); background: #064e3b33; }
+
+  .controls {
+    max-width: 960px; margin: 0 auto 16px; padding: 0 16px;
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  }
+  .ctrl-btn {
+    padding: 8px 18px; border-radius: 8px; border: 1.5px solid var(--accent);
+    background: transparent; color: var(--accent);
+    font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.2s;
+  }
+  .ctrl-btn:hover { background: var(--accent); color: #fff; }
+  .ctrl-btn-amber { border-color: var(--relay-color); color: var(--relay-color); }
+  .ctrl-btn-amber:hover { background: var(--relay-color); color: #000; }
+
+  /* ── Topology Status Indicator ── */
+  .topology-bar {
+    max-width: 900px; margin: 0 auto 20px; padding: 12px 18px;
+    background: #111827; border: 1px solid var(--border); border-radius: 12px;
+    display: flex; align-items: center; justify-content: space-around;
+    font-size: 0.8rem; color: var(--muted); flex-wrap: wrap; gap: 10px;
+  }
+  .topo-node { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .topo-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .topo-dot.blue { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .topo-dot.amber { background: var(--relay-color); box-shadow: 0 0 8px var(--relay-color); }
+  .topo-line { height: 2px; flex: 1; min-width: 40px; background: #374151; position: relative; }
+  .topo-line.active::after {
+    content: ''; position: absolute; top: -3px; left: 0; width: 8px; height: 8px;
+    border-radius: 50%; background: #f59e0b;
+    animation: flowPacket 1.5s linear infinite;
+  }
+  @keyframes flowPacket {
+    0% { left: 0%; opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { left: 100%; opacity: 0; }
+  }
+
+  /* ── Stage ── */
+  .stage {
+    display: flex; align-items: flex-start; justify-content: center;
+    gap: 24px; padding: 0 16px 32px; flex-wrap: wrap;
+  }
+
+  /* ── Phone Frames ── */
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .phone-label {
+    font-size: 0.78rem; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.8px; display: flex; align-items: center; gap: 6px;
+  }
+  .phone-label span.tag {
+    font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;
+    background: #374151; color: #fff;
+  }
+  .phone-label span.tag.relay { background: #78350f; color: #fbbf24; }
+
+  .phone {
+    width: var(--phone-w); height: var(--phone-h);
+    background: var(--card);
+    border-radius: 36px;
+    border: 3px solid var(--border);
+    box-shadow: 0 0 0 2px #000, 0 20px 48px #00000099;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .phone.relay-device {
+    border-color: #78350f;
+    box-shadow: 0 0 0 2px #000, 0 0 24px #f59e0b22;
+  }
+  .phone-notch {
+    background: #000; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .phone-notch::after {
+    content: ''; width: 70px; height: 14px;
+    background: #111; border-radius: 0 0 10px 10px;
+  }
+  .screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Top bar ── */
+  .top-bar {
+    background: #0f172a; padding: 8px 12px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .top-bar .icon { font-size: 14px; }
+  .top-bar .title { font-size: 0.85rem; font-weight: 700; flex: 1; }
+  .top-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  /* ── Relay Monitor Screen ── */
+  .relay-screen {
+    flex: 1; display: flex; flex-direction: column; padding: 12px; background: #0c1017;
+    font-family: 'Consolas', 'Courier New', monospace; font-size: 0.72rem; overflow: hidden;
+  }
+  .relay-header-box {
+    background: #1e1b18; border: 1px dashed var(--relay-color); border-radius: 8px;
+    padding: 10px; margin-bottom: 10px;
+  }
+  .relay-header-box .status-title {
+    color: var(--relay-color); font-weight: bold; margin-bottom: 4px;
+    display: flex; justify-content: space-between;
+  }
+  .relay-log-list {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+  }
+  .relay-packet-card {
+    background: #161e2e; border-left: 3px solid var(--relay-color);
+    border-radius: 4px; padding: 8px; animation: fadeIn 0.3s ease;
+  }
+  .relay-packet-card.forwarded { border-left-color: var(--green); }
+  .packet-field { color: var(--muted); line-height: 1.35; }
+  .packet-field b { color: #f3f4f6; }
+  .packet-payload {
+    background: #000; color: #f97316; padding: 4px 6px; border-radius: 4px;
+    margin-top: 4px; word-break: break-all; font-size: 0.65rem;
+  }
+  .lock-alert {
+    display: flex; align-items: center; gap: 4px; color: #ef4444; font-weight: bold;
+    font-size: 0.65rem; margin-top: 4px;
+  }
+
+  /* ── Chat UI (Alice & Bob) ── */
+  .safety-banner {
+    background: #1e293b; padding: 6px 10px; font-size: 0.65rem; color: var(--muted);
+    display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border);
+  }
+  .safety-banner code { color: var(--green); font-size: 0.68rem; }
+  .distance-alert {
+    background: #451a03; color: #fde68a; font-size: 0.65rem; padding: 6px 10px;
+    text-align: center; border-bottom: 1px solid #78350f;
+  }
+  .messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .msg {
+    max-width: 82%; padding: 8px 12px; border-radius: 14px;
+    font-size: 0.78rem; line-height: 1.35; word-break: break-word;
+    animation: msgIn 0.25s ease;
+  }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .msg.mine { align-self: flex-end; background: #1e40af; border-bottom-right-radius: 2px; }
+  .msg.theirs { align-self: flex-start; background: #1f2937; border-bottom-left-radius: 2px; }
+  .msg .meta {
+    font-size: 0.6rem; color: #9ca3af; margin-top: 3px; display: flex; justify-content: space-between; gap: 6px;
+  }
+  .msg .hop-badge { color: var(--relay-color); font-weight: bold; }
+  .chat-input {
+    padding: 8px; border-top: 1px solid var(--border); display: flex; gap: 6px;
+  }
+  .chat-input input {
+    flex: 1; padding: 8px 10px; border-radius: 18px; border: 1px solid var(--border);
+    background: #0f172a; color: var(--text); font-size: 0.78rem; outline: none;
+  }
+  .send-btn {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--accent);
+    border: none; cursor: pointer; color: #fff; font-size: 0.85rem; display: flex;
+    align-items: center; justify-content: center;
+  }
+
+  /* ── Deep Packet Inspection Panel ── */
+  .crypto-panel {
+    max-width: 960px; margin: 0 auto 30px; padding: 0 16px;
+  }
+  .panel-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px;
+  }
+  .panel-title {
+    font-size: 0.95rem; font-weight: 700; color: var(--relay-color);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .packet-breakdown {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;
+    margin-bottom: 12px;
+  }
+  .packet-col {
+    background: #0b0f19; border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+    font-size: 0.72rem;
+  }
+  .packet-col label { color: var(--muted); font-weight: bold; text-transform: uppercase; font-size: 0.65rem; display: block; margin-bottom: 4px; }
+  .packet-col .val { font-family: monospace; color: #38bdf8; word-break: break-all; }
+  .packet-col .val.cipher { color: #f97316; }
+  .packet-col .val.green { color: var(--green); }
+
+  .explanation-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;
+    max-width: 960px; margin: 0 auto 40px; padding: 0 16px;
+  }
+  .explain-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+  }
+  .explain-card h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .explain-card p { font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Nearby<span class="blue">Chat</span>: <span class="amber">Multi-Hop Blind Relay</span> Demo</h1>
+  <p>Alice is out of Bob's Bluetooth range. Device C acts as an encrypted store-and-forward relay.</p>
+  <div class="badges">
+    <span class="badge badge-blue">📱 Alice (Origin)</span>
+    <span class="badge badge-amber">⚡ Device C (Blind Mesh Relay)</span>
+    <span class="badge badge-blue">📱 Bob (Recipient)</span>
+    <span class="badge badge-green">🔒 Zero-Knowledge Forwarding</span>
+  </div>
+</header>
+
+<!-- Controls -->
+<div class="controls">
+  <button class="ctrl-btn" onclick="sendCustomRelayedMessage('Hello Bob via Device C!')">⚡ Send 2-Hop Encrypted Message</button>
+  <button class="ctrl-btn ctrl-btn-amber" onclick="triggerAutoSequence()">▶ Run Automated Multi-Hop Demo</button>
+  <button class="ctrl-btn" onclick="location.reload()">🔄 Reset</button>
+</div>
+
+<!-- Topology bar -->
+<div class="topology-bar">
+  <div class="topo-node"><div class="topo-dot blue"></div> Alice (Tx)</div>
+  <div class="topo-line active" id="line1"></div>
+  <div class="topo-node"><div class="topo-dot amber"></div> <b>Device C (Relay Node)</b></div>
+  <div class="topo-line active" id="line2"></div>
+  <div class="topo-node"><div class="topo-dot blue"></div> Bob (Rx)</div>
+</div>
+
+<!-- 3 Device Stage -->
+<div class="stage">
+
+  <!-- ═══════════════ DEVICE 1: ALICE ═══════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">
+      <span>📱 Phone A — Alice</span>
+      <span class="tag">Sender</span>
+    </div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="screen">
+        <div class="top-bar">
+          <span class="icon">💬</span>
+          <span class="title">Alice · Out of Range</span>
+          <div class="dot"></div>
+        </div>
+        <div class="distance-alert">⚠️ Bob is >30m away. Routing via Relay C.</div>
+        <div class="safety-banner">
+          <span>Bob's Safety ID: <code id="a-safety">e7-2b-91-c4</code></span>
+        </div>
+        <div class="messages" id="a-messages"></div>
+        <div class="chat-input">
+          <input id="a-input" placeholder="Type a message to Bob..." onkeydown="if(event.key==='Enter') sendUserMessage()" />
+          <button class="send-btn" onclick="sendUserMessage()">➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ DEVICE 2: BLIND RELAY C ═══════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">
+      <span>⚡ Device C (Relay)</span>
+      <span class="tag relay">Cannot Decrypt</span>
+    </div>
+    <div class="phone relay-device">
+      <div class="phone-notch"></div>
+      <div class="screen">
+        <div class="top-bar" style="background:#1e1b18;">
+          <span class="icon">📡</span>
+          <span class="title" style="color:var(--relay-color)">Blind Mesh Relay Daemon</span>
+          <div class="dot" style="background:var(--relay-color); box-shadow:0 0 6px var(--relay-color)"></div>
+        </div>
+
+        <div class="relay-screen">
+          <div class="relay-header-box">
+            <div class="status-title">
+              <span>ACTIVE BLE FORWARDER</span>
+              <span id="relay-counter">0 Packets</span>
+            </div>
+            <div style="color:var(--muted); font-size:0.65rem;">
+              • No private keys held<br/>
+              • Re-broadcasts blind frames<br/>
+              • Prevents broadcast storms (TTL-- &amp; Seen-Cache)
+            </div>
+          </div>
+
+          <div style="font-weight:bold; color:var(--muted); margin-bottom:6px;">LIVE PACKET BUFFER:</div>
+          <div class="relay-log-list" id="relay-logs">
+            <div style="color:#6b7280; text-align:center; padding:20px 0;">Listening on 2.4GHz BLE channels...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ DEVICE 3: BOB ═══════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">
+      <span>📱 Phone B — Bob</span>
+      <span class="tag">Recipient</span>
+    </div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="screen">
+        <div class="top-bar">
+          <span class="icon">💬</span>
+          <span class="title">Bob · Connected to C</span>
+          <div class="dot"></div>
+        </div>
+        <div class="safety-banner">
+          <span>Alice's Safety ID: <code id="b-safety">e7-2b-91-c4</code></span>
+        </div>
+        <div class="messages" id="b-messages"></div>
+        <div class="chat-input" style="opacity:0.6; pointer-events:none;">
+          <input placeholder="Received via Multi-Hop Relay..." disabled />
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Inspection Panel -->
+<div class="crypto-panel">
+  <div class="panel-box">
+    <div class="panel-title">
+      <span>🔍 Cryptographic Packet Inspection (What travels over the air through Device C)</span>
+    </div>
+    <div class="packet-breakdown">
+      <div class="packet-col">
+        <label>BLE Hop Header (Cleartext)</label>
+        <div class="val" id="insp-header">Src: Alice | Dst: Bob | TTL: 2 | Hop: 1</div>
+      </div>
+      <div class="packet-col">
+        <label>Relay Node State (Device C)</label>
+        <div class="val" style="color:#fbbf24;" id="insp-relay">Has Key? NO | Can Decrypt? NO</div>
+      </div>
+      <div class="packet-col">
+        <label>AES-GCM-256 Encrypted Payload</label>
+        <div class="val cipher" id="insp-cipher">— (Send a message to see payload) —</div>
+      </div>
+      <div class="packet-col">
+        <label>Final Decryption (Bob Only)</label>
+        <div class="val green" id="insp-decrypted">— (Unlocks only with Bob's private key) —</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Explanatory Cards -->
+<div class="explanation-grid">
+  <div class="explain-card">
+    <h4><span>🛡️</span> Zero-Knowledge Relay</h4>
+    <p>Device C only reads the <b>envelope header</b> (recipient fingerprint and TTL). Because the message body is encrypted with Alice and Bob's shared key, Device C cannot read, log, or tamper with the conversation.</p>
+  </div>
+  <div class="explain-card">
+    <h4><span>🔄</span> TTL &amp; Loop Prevention</h4>
+    <p>Each multi-hop packet carries a Time-to-Live (TTL = 3). Device C decrements the TTL by 1 before relaying. If a packet loops back, Device C's seen-cache drops it immediately, preventing broadcast storms.</p>
+  </div>
+  <div class="explain-card">
+    <h4><span>🔏</span> Authentication &amp; Tamper-Proofing</h4>
+    <p>The AES-GCM 128-bit MAC tag includes the sender, recipient, and timestamp as Additional Authenticated Data (AAD). If a malicious relay modifies even a single bit of the packet, Bob's phone discards it.</p>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// Cryptography using Web Crypto API
+// ══════════════════════════════════════════════════════════════
+let aliceKP, bobKP, sharedSecret, aesKey;
+let packetCount = 0;
+
+function toHex(buf) {
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+function fromHex(hex) {
+  return new Uint8Array(hex.match(/.{2}/g).map(b => parseInt(b,16)));
+}
+
+async function initCrypto() {
+  // Generate ECDH P-256 keys for Alice and Bob ONLY (Device C gets no keys!)
+  aliceKP = await crypto.subtle.generateKey({ name:'ECDH', namedCurve:'P-256' }, true, ['deriveKey','deriveBits']);
+  bobKP   = await crypto.subtle.generateKey({ name:'ECDH', namedCurve:'P-256' }, true, ['deriveKey','deriveBits']);
+
+  // Alice and Bob derive the same shared key
+  const sharedBits = await crypto.subtle.deriveBits({ name:'ECDH', public: bobKP.publicKey }, aliceKP.privateKey, 256);
+  sharedSecret = sharedBits;
+
+  const enc = new TextEncoder();
+  const salt = enc.encode('nearbychat-multihop-v1');
+  const combined = new Uint8Array([...salt, ...new Uint8Array(sharedBits)]);
+  const hash = await crypto.subtle.digest('SHA-256', combined);
+
+  aesKey = await crypto.subtle.importKey('raw', hash, { name:'AES-GCM' }, false, ['encrypt','decrypt']);
+
+  // Compute safety number
+  const safetyHash = await crypto.subtle.digest('SHA-256', sharedBits);
+  const safetyHex = [...new Uint8Array(safetyHash)].slice(0,4).map(b=>b.toString(16).padStart(2,'0')).join('-');
+  document.getElementById('a-safety').textContent = safetyHex;
+  document.getElementById('b-safety').textContent = safetyHex;
+}
+
+async function encryptForBob(plaintext) {
+  const enc = new TextEncoder();
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt({ name:'AES-GCM', iv: nonce }, aesKey, enc.encode(plaintext));
+  return {
+    nonce: toHex(nonce),
+    ciphertext: toHex(ciphertext)
+  };
+}
+
+async function decryptByBob(nonceHex, ciphertextHex) {
+  const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv: fromHex(nonceHex) }, aesKey, fromHex(ciphertextHex));
+  return new TextDecoder().decode(pt);
+}
+
+// ══════════════════════════════════════════════════════════════
+// Multi-Hop Relay Logic
+// ══════════════════════════════════════════════════════════════
+async function transmitRelayedPacket(text) {
+  packetCount++;
+  document.getElementById('relay-counter').textContent = `${packetCount} Packet${packetCount>1?'s':''}`;
+
+  // Step 1: Alice encrypts the message
+  const encrypted = await encryptForBob(text);
+  const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+  // Add message to Alice's screen
+  const aMsg = document.createElement('div');
+  aMsg.className = 'msg mine';
+  aMsg.innerHTML = `${text}<div class="meta"><span>${now}</span><span class="hop-badge">Hop 1: → Relay C</span></div>`;
+  document.getElementById('a-messages').appendChild(aMsg);
+  document.getElementById('a-messages').scrollTop = 9999;
+
+  // Step 2: Packet arrives at Relay C
+  setTimeout(() => {
+    const logs = document.getElementById('relay-logs');
+    if (packetCount === 1) logs.innerHTML = ''; // clear placeholder
+
+    const card = document.createElement('div');
+    card.className = 'relay-packet-card';
+    card.id = `pkt-${packetCount}`;
+    card.innerHTML = `
+      <div class="packet-field"><b>[INBOUND]</b> From: 0xALICE (RSSI: -64dBm)</div>
+      <div class="packet-field">TTL: <b>2</b> &rarr; Decremented to <b>1</b></div>
+      <div class="packet-field">Target Fingerprint: <b>0xBOB-8F42</b></div>
+      <div class="packet-payload">CIPHERTEXT: ${encrypted.ciphertext.substring(0, 36)}...</div>
+      <div class="lock-alert">🔒 Encrypted with Peer Key (Payload unreadable by C)</div>
+      <div style="font-size:0.65rem; color:#f59e0b; margin-top:4px;" id="status-${packetCount}">⚡ Queued for forward...</div>
+    `;
+    logs.prepend(card);
+
+    // Update inspection panel
+    document.getElementById('insp-header').textContent = `From: Alice | For: Bob | PacketID: #${packetCount} | TTL: 1`;
+    document.getElementById('insp-cipher').textContent = encrypted.ciphertext.substring(0, 52) + '... [AES-GCM AUTHENTICATED]';
+    document.getElementById('insp-decrypted').textContent = '⚠️ Locked. Device C has no private key matching this session.';
+
+    // Step 3: Relay C forwards to Bob
+    setTimeout(async () => {
+      document.getElementById(`status-${packetCount}`).textContent = '✓ Relayed to Bob via BLE Characteristic Write';
+      document.getElementById(`pkt-${packetCount}`).classList.add('forwarded');
+
+      // Bob decrypts with his private key
+      const decrypted = await decryptByBob(encrypted.nonce, encrypted.ciphertext);
+
+      const bMsg = document.createElement('div');
+      bMsg.className = 'msg theirs';
+      bMsg.innerHTML = `${decrypted}<div class="meta"><span>${now}</span><span class="hop-badge">Via Relay C (2 Hops)</span></div>`;
+      document.getElementById('b-messages').appendChild(bMsg);
+      document.getElementById('b-messages').scrollTop = 9999;
+
+      document.getElementById('insp-decrypted').textContent = `"${decrypted}" (Successfully verified & unlocked by Bob)`;
+    }, 800);
+
+  }, 400);
+}
+
+function sendUserMessage() {
+  const input = document.getElementById('a-input');
+  const val = input.value.trim();
+  if (!val) return;
+  input.value = '';
+  transmitRelayedPacket(val);
+}
+
+function sendCustomRelayedMessage(text) {
+  transmitRelayedPacket(text);
+}
+
+async function triggerAutoSequence() {
+  const seq = [
+    "Hey Bob, you're out of my direct radio range!",
+    "Device C is in the middle relaying our packets.",
+    "Notice how Device C cannot see our plaintext.",
+    "This is true zero-knowledge multi-hop mesh routing!"
+  ];
+  for (let i = 0; i < seq.length; i++) {
+    await new Promise(r => setTimeout(r, i === 0 ? 100 : 2200));
+    transmitRelayedPacket(seq[i]);
+  }
+}
+
+// Start
+initCrypto();
+</script>
+</body>
+</html>

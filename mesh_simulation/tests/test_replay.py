@@ -1,0 +1,61 @@
+"""
+Unit tests for ReplayCache and duplicate suppression.
+"""
+
+import time
+from mesh_simulation.node_app.routing import ReplayCache
+from mesh_simulation.node_app.protocol import Packet, PacketType
+
+
+def test_replay_cache_deduplication():
+    cache = ReplayCache(capacity=10, ttl_seconds=1.0)
+    sender = "nodeA"
+    mid = "msg_001"
+
+    assert cache.has_seen(sender, mid) is False
+
+    cache.record(sender, mid)
+    assert cache.has_seen(sender, mid) is True
+
+    # Different message from same sender
+    assert cache.has_seen(sender, "msg_002") is False
+
+
+def test_replay_cache_ttl_expiration():
+    cache = ReplayCache(capacity=10, ttl_seconds=0.1)
+    sender = "nodeA"
+    mid = "msg_expire"
+
+    cache.record(sender, mid)
+    assert cache.has_seen(sender, mid) is True
+
+    time.sleep(0.15)
+    assert cache.has_seen(sender, mid) is False
+
+
+def test_packet_expiry_flag():
+    now = time.time()
+    valid_packet = Packet(
+        packet_type=PacketType.DATA,
+        sender_id="A",
+        sender_vk="vkA",
+        destination_id="B",
+        message_id="m1",
+        seq=1,
+        timestamp=now,
+        expiry=now + 10.0,
+    )
+    assert valid_packet.is_expired() is False
+
+    expired_packet = Packet(
+        packet_type=PacketType.DATA,
+        sender_id="A",
+        sender_vk="vkA",
+        destination_id="B",
+        message_id="m2",
+        seq=2,
+        timestamp=now - 90000.0,
+        expiry=now - 86500.0,
+    )
+    # The default grace period is 86400 seconds (24 hours).
+    assert expired_packet.is_expired() is True

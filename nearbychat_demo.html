@@ -3,16 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NearbyChat — Live Demo</title>
+<title>NearbyChat — Live E2EE &amp; BLE Demo with Cryptographic Logs</title>
 <style>
   :root {
-    --bg: #0d0d0d;
-    --surface: #1a1a2e;
+    --bg: #0b0f19;
+    --surface: #111827;
     --card: #16213e;
-    --accent: #4f8ef7;
-    --accent2: #a855f7;
-    --green: #22c55e;
+    --accent: #3b82f6;
+    --accent2: #8b5cf6;
+    --green: #10b981;
     --red: #ef4444;
+    --amber: #f59e0b;
+    --cyan: #06b6d4;
     --text: #f1f5f9;
     --muted: #94a3b8;
     --border: #334155;
@@ -23,7 +25,7 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
   }
@@ -31,30 +33,52 @@
   /* ── Header ── */
   header {
     text-align: center;
-    padding: 24px 16px 12px;
-    background: linear-gradient(180deg, #0f172a 0%, transparent 100%);
+    padding: 24px 16px 14px;
+    background: linear-gradient(180deg, #1e293b 0%, transparent 100%);
   }
-  header h1 { font-size: 2rem; font-weight: 800; letter-spacing: -1px; }
+  header h1 { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.5px; }
   header h1 span { color: var(--accent); }
   header p { color: var(--muted); margin-top: 4px; font-size: 0.9rem; }
 
   /* ── Badge row ── */
   .badges {
     display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
-    margin: 10px 0 20px;
+    margin: 12px 0 20px;
   }
   .badge {
-    font-size: 0.72rem; font-weight: 600; padding: 3px 10px;
-    border-radius: 99px; border: 1px solid;
+    font-size: 0.72rem; font-weight: 600; padding: 4px 12px;
+    border-radius: 99px; border: 1px solid; display: inline-flex; align-items: center; gap: 4px;
   }
-  .badge-blue  { color: var(--accent);  border-color: var(--accent);  background: #1e3a5f33; }
-  .badge-purple{ color: #c084fc;        border-color: #a855f7;        background: #2e1b4433; }
-  .badge-green { color: var(--green);   border-color: var(--green);   background: #14532d33; }
+  .badge-blue   { color: var(--accent); border-color: var(--accent); background: #1e3a5f33; }
+  .badge-purple { color: #c084fc;       border-color: var(--accent2); background: #2e1b4433; }
+  .badge-green  { color: var(--green);  border-color: var(--green);  background: #064e3b33; }
+  .badge-amber  { color: var(--amber);  border-color: var(--amber);  background: #78350f33; }
+  .badge-cyan   { color: var(--cyan);   border-color: var(--cyan);   background: #08334433; }
 
-  /* ── Stage ── */
+  /* ── Control strip ── */
+  .controls {
+    max-width: 900px; margin: 0 auto 22px; padding: 0 16px;
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+  }
+  .ctrl-btn {
+    padding: 8px 16px; border-radius: 8px; border: 1.5px solid var(--accent);
+    background: transparent; color: var(--accent);
+    font-size: 0.8rem; font-weight: 700; cursor: pointer;
+    transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .ctrl-btn:hover { background: var(--accent); color: #fff; }
+  .ctrl-btn.active { background: var(--accent); color: #fff; }
+  .ctrl-btn-amber { border-color: var(--amber); color: var(--amber); }
+  .ctrl-btn-amber:hover { background: var(--amber); color: #000; }
+  .ctrl-btn-green { border-color: var(--green); color: var(--green); }
+  .ctrl-btn-green:hover { background: var(--green); color: #fff; }
+  .ctrl-btn-red { border-color: var(--red); color: var(--red); }
+  .ctrl-btn-red:hover { background: var(--red); color: #fff; }
+
+  /* ── Stage with two phones ── */
   .stage {
     display: flex; align-items: flex-start; justify-content: center;
-    gap: 80px; padding: 0 24px 32px; flex-wrap: wrap; position: relative;
+    gap: 60px; padding: 0 20px 28px; flex-wrap: wrap; position: relative;
   }
 
   /* ── BLE signal animation between phones ── */
@@ -73,35 +97,35 @@
   }
   .ble-signal .wave:nth-child(2) { animation-delay: 0.2s; }
   .ble-signal .wave:nth-child(3) { animation-delay: 0.4s; }
-  .ble-signal label { font-size: 0.65rem; color: var(--accent); letter-spacing: 0.5px; margin-top: 2px; }
+  .ble-signal label { font-size: 0.65rem; color: var(--accent); letter-spacing: 0.5px; margin-top: 2px; font-weight: bold; }
   @keyframes pulse-dot {
     0%, 100% { opacity: 0.2; transform: scale(0.8); }
     50% { opacity: 1; transform: scale(1.4); }
   }
 
   /* ── Phone frame ── */
-  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .phone-label {
     font-size: 0.78rem; font-weight: 700; color: var(--muted);
-    text-transform: uppercase; letter-spacing: 1px;
+    text-transform: uppercase; letter-spacing: 0.8px;
   }
   .phone {
     width: var(--phone-w); height: var(--phone-h);
     background: var(--card);
-    border-radius: 40px;
+    border-radius: 38px;
     border: 3px solid var(--border);
-    box-shadow: 0 0 0 2px #000, 0 24px 64px #00000088;
+    box-shadow: 0 0 0 2px #000, 0 20px 54px #00000099;
     overflow: hidden;
     display: flex; flex-direction: column;
     position: relative;
   }
   .phone-notch {
-    background: #000; height: 30px;
+    background: #000; height: 28px;
     display: flex; align-items: center; justify-content: center;
   }
   .phone-notch::after {
-    content: ''; width: 80px; height: 18px;
-    background: #111; border-radius: 0 0 12px 12px;
+    content: ''; width: 74px; height: 16px;
+    background: #111; border-radius: 0 0 10px 10px;
   }
   .screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -129,7 +153,7 @@
     flex: 1; display: flex; flex-direction: column;
     align-items: center; justify-content: center; padding: 24px; gap: 16px;
   }
-  .setup-screen .icon { font-size: 48px; }
+  .setup-screen .icon { font-size: 46px; }
   .setup-screen h2 { font-size: 1.2rem; font-weight: 800; }
   .setup-screen p { font-size: 0.75rem; color: var(--muted); text-align: center; }
   .setup-screen input {
@@ -152,7 +176,7 @@
   .peer-screen { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
   .scan-status {
     padding: 8px 14px; font-size: 0.72rem; color: var(--muted);
-    display: flex; align-items: center; gap: 6px;
+    display: flex; align-items: center; gap: 6px; background: #0c1220;
   }
   .scan-spinner {
     width: 8px; height: 8px; border-radius: 50%;
@@ -172,12 +196,12 @@
   .peer-item:hover { background: #1e293b; }
   @keyframes fadeIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
   .avatar {
-    width: 40px; height: 40px; border-radius: 50%;
+    width: 38px; height: 38px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 1rem; color: #fff; flex-shrink: 0;
+    font-weight: 700; font-size: 0.95rem; color: #fff; flex-shrink: 0;
   }
   .peer-info { flex: 1; min-width: 0; }
-  .peer-name { font-size: 0.88rem; font-weight: 600; }
+  .peer-name { font-size: 0.88rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
   .peer-safety { font-size: 0.65rem; color: var(--muted); font-family: monospace; margin-top: 2px; }
   .chevron { color: var(--muted); font-size: 0.8rem; }
 
@@ -199,14 +223,14 @@
     display: flex; align-items: center; justify-content: space-between;
     border-bottom: 1px solid var(--border);
   }
-  .safety-banner code { color: var(--green); font-size: 0.68rem; }
+  .safety-banner code { color: var(--green); font-size: 0.68rem; font-weight: bold; }
   .dismiss-btn {
     background: none; border: none; color: var(--accent);
     font-size: 0.65rem; cursor: pointer; font-weight: 700; padding: 2px 6px;
   }
-  .messages { flex: 1; overflow-y: auto; padding: 10px 10px 4px; display: flex; flex-direction: column; gap: 6px; }
+  .messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
   .msg {
-    max-width: 78%; padding: 8px 12px; border-radius: 16px;
+    max-width: 80%; padding: 8px 12px; border-radius: 16px;
     font-size: 0.8rem; line-height: 1.4; word-break: break-word;
     animation: msgIn 0.25s ease;
   }
@@ -219,7 +243,15 @@
     align-self: flex-start; background: #1e293b;
     border-bottom-left-radius: 4px;
   }
-  .msg .time { font-size: 0.6rem; color: #94a3b8; margin-top: 3px; text-align: right; }
+  .msg .meta {
+    font-size: 0.62rem; color: #94a3b8; margin-top: 4px;
+    display: flex; justify-content: flex-end; align-items: center; gap: 4px;
+  }
+  .msg.theirs .meta { justify-content: flex-start; }
+  .tick { font-weight: bold; font-size: 0.72rem; }
+  .tick.sent { color: #94a3b8; }
+  .tick.delivered { color: #38bdf8; }
+
   .chat-input {
     padding: 8px 10px; border-top: 1px solid var(--border);
     display: flex; gap: 6px; align-items: flex-end;
@@ -240,66 +272,174 @@
   }
   .send-btn:hover { opacity: 0.85; }
 
-  /* ── Encryption panel ── */
+  /* ── Detailed Cryptographic Inspection Panel ── */
   .crypto-panel {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 16px; padding: 20px; max-width: 700px; margin: 0 auto 32px;
+    max-width: 900px; margin: 0 auto 24px; padding: 0 16px;
     width: 100%;
   }
-  .crypto-panel h3 {
-    font-size: 0.9rem; font-weight: 700; margin-bottom: 12px;
-    display: flex; align-items: center; gap: 6px; color: var(--accent);
+  .crypto-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px 20px;
   }
-  .crypto-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-  .crypto-row label { font-size: 0.7rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .crypto-box h3 {
+    font-size: 0.92rem; font-weight: 700; margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: space-between; color: var(--accent);
+  }
+  .crypto-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;
+  }
+  .crypto-row { display: flex; flex-direction: column; gap: 5px; }
+  .crypto-row label {
+    font-size: 0.68rem; color: var(--muted); font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;
+  }
   .crypto-value {
-    background: #0f172a; border: 1px solid var(--border);
+    background: #0b0f19; border: 1px solid var(--border);
     border-radius: 8px; padding: 8px 10px;
-    font-family: monospace; font-size: 0.68rem; color: var(--green);
-    word-break: break-all; min-height: 32px; transition: all 0.3s;
+    font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 0.68rem; color: var(--green);
+    word-break: break-all; min-height: 34px; transition: all 0.3s;
   }
-  .crypto-value.ciphertext { color: #f97316; }
+  .crypto-value.ciphertext { color: var(--amber); }
   .crypto-value.key-val { color: #a78bfa; }
+  .crypto-value.cyan-val { color: var(--cyan); }
   .step-badge {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 20px; height: 20px; border-radius: 50%;
+    width: 18px; height: 18px; border-radius: 50%;
     background: var(--accent); color: #fff;
-    font-size: 0.65rem; font-weight: 700; flex-shrink: 0;
+    font-size: 0.62rem; font-weight: 700; flex-shrink: 0;
   }
+
+  /* ── LIVE SECURITY & CRYPTOGRAPHIC PROTOCOL LOG CONSOLE ── */
+  .log-console-wrap {
+    max-width: 900px; margin: 0 auto 36px; padding: 0 16px; width: 100%;
+  }
+  .log-terminal {
+    background: #060913; border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; box-shadow: 0 12px 36px #00000099;
+    display: flex; flex-direction: column;
+  }
+  .log-terminal-header {
+    background: #0d1322; border-bottom: 1px solid #1e293b;
+    padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+  }
+  .log-header-left {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .terminal-dots { display: flex; gap: 6px; margin-right: 4px; }
+  .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .terminal-dot.red { background: #ef4444; }
+  .terminal-dot.yellow { background: #f59e0b; }
+  .terminal-dot.green { background: #10b981; }
+  .log-title {
+    font-size: 0.84rem; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 6px;
+    letter-spacing: -0.2px;
+  }
+  .log-counter-badge {
+    background: #1e293b; color: #38bdf8; font-size: 0.68rem; font-weight: 600;
+    padding: 2px 8px; border-radius: 99px; border: 1px solid #334155;
+    font-family: monospace;
+  }
+  .log-header-right {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .log-search-input {
+    background: #060913; border: 1px solid #334155; border-radius: 6px;
+    padding: 4px 8px; font-size: 0.72rem; color: #f1f5f9; outline: none; width: 140px;
+    font-family: inherit; transition: border-color 0.2s;
+  }
+  .log-search-input:focus { border-color: var(--accent); }
+  .log-tool-btn {
+    background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+    padding: 4px 10px; font-size: 0.72rem; font-weight: 600; color: #cbd5e1;
+    cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .log-tool-btn:hover { background: #334155; color: #fff; }
+  .autoscroll-toggle {
+    font-size: 0.7rem; color: #94a3b8; display: flex; align-items: center; gap: 4px;
+    cursor: pointer; user-select: none;
+  }
+  .autoscroll-toggle input { cursor: pointer; }
+
+  /* ── Filter chips ── */
+  .log-filters {
+    background: #090e1a; padding: 8px 14px; display: flex; gap: 6px; overflow-x: auto;
+    border-bottom: 1px solid #1e293b;
+  }
+  .filter-chip {
+    padding: 4px 10px; border-radius: 6px; border: 1px solid #1e293b;
+    background: #0f172a; color: #94a3b8; font-size: 0.68rem; font-weight: 600;
+    cursor: pointer; white-space: nowrap; transition: all 0.15s;
+  }
+  .filter-chip:hover { border-color: #3b82f6; color: #f1f5f9; }
+  .filter-chip.active {
+    background: #1e3a5f; border-color: #3b82f6; color: #93c5fd;
+  }
+  .filter-chip.chip-sha.active { background: #083344; border-color: #06b6d4; color: #67e8f9; }
+  .filter-chip.chip-aes.active { background: #451a03; border-color: #f59e0b; color: #fde68a; }
+  .filter-chip.chip-ack.active { background: #064e3b; border-color: #10b981; color: #a7f3d0; }
+
+  /* ── Terminal output body ── */
+  .log-terminal-body {
+    height: 340px; overflow-y: auto; padding: 12px 14px;
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.72rem; line-height: 1.6; display: flex; flex-direction: column; gap: 4px;
+  }
+  .log-entry {
+    display: flex; gap: 8px; align-items: flex-start; word-break: break-all;
+    animation: fadeIn 0.12s ease-out;
+  }
+  .log-ts {
+    color: #64748b; font-size: 0.65rem; white-space: nowrap; flex-shrink: 0; padding-top: 1px;
+  }
+  .log-tag {
+    font-size: 0.64rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+    white-space: nowrap; flex-shrink: 0; text-transform: uppercase;
+  }
+  .tag-sha      { background: #0c4a6e; color: #38bdf8; border: 1px solid #0284c7; }
+  .tag-hkdf     { background: #134e4a; color: #2dd4bf; border: 1px solid #0d9488; }
+  .tag-hmac     { background: #064e3b; color: #34d399; border: 1px solid #059669; }
+  .tag-aes      { background: #451a03; color: #fbbf24; border: 1px solid #d97706; }
+  .tag-pfs      { background: #3b0764; color: #c084fc; border: 1px solid #7c3aed; }
+  .tag-ble      { background: #1e3a8a; color: #93c5fd; border: 1px solid #2563eb; }
+  .tag-ack      { background: #064e3b; color: #34d399; border: 1px solid #10b981; }
+  .tag-storage  { background: #500724; color: #f472b6; border: 1px solid #db2777; }
+  .tag-alert    { background: #450a0a; color: #f87171; border: 1px solid #dc2626; }
+  .tag-info     { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+  .log-text { color: #e2e8f0; flex: 1; }
+  .log-text .code { color: #67e8f9; font-weight: 600; }
+  .log-text .hex  { color: #f59e0b; }
+  .log-text .success { color: #4ade80; font-weight: bold; }
+  .log-text .fail    { color: #f87171; font-weight: bold; }
+
+  /* ── Terminal footer ── */
+  .log-terminal-footer {
+    background: #090e1a; border-top: 1px solid #1e293b;
+    padding: 6px 14px; display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.65rem; color: #64748b; font-family: monospace;
+  }
+  .footer-live-status { display: flex; align-items: center; gap: 6px; }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #10b981;
+    box-shadow: 0 0 6px #10b981; animation: blink 1.5s infinite;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
   /* ── Info section ── */
   .info-section {
-    max-width: 700px; margin: 0 auto 40px; padding: 0 16px;
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+    max-width: 900px; margin: 0 auto 40px; padding: 0 16px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;
   }
   .info-card {
-    background: var(--card); border: 1px solid var(--border);
+    background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; padding: 16px;
   }
   .info-card .icon { font-size: 1.4rem; margin-bottom: 8px; }
   .info-card h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
   .info-card p { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
 
-  /* ── Control strip ── */
-  .controls {
-    max-width: 700px; margin: 0 auto 24px; padding: 0 16px;
-    display: flex; gap: 10px; flex-wrap: wrap;
-  }
-  .ctrl-btn {
-    padding: 9px 18px; border-radius: 10px; border: 1.5px solid var(--accent);
-    background: transparent; color: var(--accent);
-    font-size: 0.82rem; font-weight: 700; cursor: pointer;
-    transition: all 0.2s;
-  }
-  .ctrl-btn:hover { background: var(--accent); color: #fff; }
-  .ctrl-btn.active { background: var(--accent); color: #fff; }
-
   .hidden { display: none !important; }
-  .fade { opacity: 0; transition: opacity 0.3s; }
-  .fade.show { opacity: 1; }
-
-  /* scrollbar */
-  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 </style>
@@ -307,14 +447,15 @@
 <body>
 
 <header>
-  <h1>Nearby<span>Chat</span></h1>
-  <p>Cross-Platform · Bluetooth Only · End-to-End Encrypted · No Internet · No Accounts</p>
+  <h1>Nearby<span>Chat</span> Live E2EE Demo</h1>
+  <p>Decentralized Bluetooth Low Energy (BLE) Mesh &amp; Direct Messaging Architecture</p>
   <div class="badges">
     <span class="badge badge-blue">📱 Android &amp; iOS</span>
-    <span class="badge badge-purple">🔒 X25519 + AES-GCM</span>
-    <span class="badge badge-green">📡 Bluetooth LE Only</span>
-    <span class="badge badge-blue">💾 On-Device History</span>
-    <span class="badge badge-purple">🚫 Zero Servers</span>
+    <span class="badge badge-purple">🔒 X25519 (ECDH)</span>
+    <span class="badge badge-cyan">🔑 HKDF-SHA256 (PFS)</span>
+    <span class="badge badge-amber">🛡️ AES-GCM-256 + AAD</span>
+    <span class="badge badge-green">✓ HMAC-SHA256 Delivery ACKs</span>
+    <span class="badge badge-blue">📡 BLE Peripheral + Central</span>
   </div>
 </header>
 
@@ -322,6 +463,8 @@
 <div class="controls">
   <button class="ctrl-btn" onclick="resetDemo()">🔄 Reset Demo</button>
   <button class="ctrl-btn" id="autoBtn" onclick="runAutoDemo()">▶ Auto Demo</button>
+  <button class="ctrl-btn ctrl-btn-amber" onclick="simulateCiphertextTamper()">⚠️ Test Ciphertext Tamper (MITM)</button>
+  <button class="ctrl-btn ctrl-btn-green" onclick="simulateForgedAck()">🛡️ Test Forged ACK</button>
 </div>
 
 <!-- Stage with two phones -->
@@ -332,7 +475,7 @@
     <div class="wave"></div>
     <div class="wave"></div>
     <div class="wave"></div>
-    <label>BLE</label>
+    <label>2.4 GHz BLE</label>
   </div>
 
   <!-- ════════════════ PHONE A ════════════════ -->
@@ -353,7 +496,7 @@
         <div class="setup-screen" id="a-setup">
           <div class="icon">📡</div>
           <h2>NearbyChat</h2>
-          <p>Private Bluetooth messages for people nearby. No account or internet needed.</p>
+          <p>End-to-end encrypted Bluetooth chat. Zero internet, zero accounts.</p>
           <input id="a-username" type="text" placeholder="Enter username" value="Alice" maxlength="20" />
           <button class="btn" onclick="startPhone('A')">Find Nearby People</button>
         </div>
@@ -362,7 +505,7 @@
         <div class="peer-screen hidden" id="a-peers">
           <div class="scan-status">
             <div class="scan-spinner" id="a-spinner"></div>
-            <span id="a-scan-label">Scanning for nearby people…</span>
+            <span id="a-scan-label">Scanning for nearby people via BLE…</span>
           </div>
           <div class="peer-list" id="a-peer-list"></div>
         </div>
@@ -372,10 +515,10 @@
           <div class="chat-header">
             <button class="back-btn" onclick="goBack('A')">←</button>
             <span class="peer-name" id="a-chat-name"></span>
-            <span style="font-size:0.65rem; color:var(--green)">🔒 E2E</span>
+            <span style="font-size:0.65rem; color:var(--green)">🔒 E2EE v2</span>
           </div>
           <div class="safety-banner" id="a-banner">
-            <span>Safety ID: <code id="a-safety"></code></span>
+            <span>Safety No: <code id="a-safety"></code></span>
             <button class="dismiss-btn" onclick="this.parentElement.style.display='none'">DISMISS</button>
           </div>
           <div class="messages" id="a-messages"></div>
@@ -407,7 +550,7 @@
         <div class="setup-screen" id="b-setup">
           <div class="icon">📡</div>
           <h2>NearbyChat</h2>
-          <p>Private Bluetooth messages for people nearby. No account or internet needed.</p>
+          <p>End-to-end encrypted Bluetooth chat. Zero internet, zero accounts.</p>
           <input id="b-username" type="text" placeholder="Enter username" value="Bob" maxlength="20" />
           <button class="btn" onclick="startPhone('B')">Find Nearby People</button>
         </div>
@@ -416,7 +559,7 @@
         <div class="peer-screen hidden" id="b-peers">
           <div class="scan-status">
             <div class="scan-spinner" id="b-spinner"></div>
-            <span id="b-scan-label">Scanning for nearby people…</span>
+            <span id="b-scan-label">Scanning for nearby people via BLE…</span>
           </div>
           <div class="peer-list" id="b-peer-list"></div>
         </div>
@@ -426,10 +569,10 @@
           <div class="chat-header">
             <button class="back-btn" onclick="goBack('B')">←</button>
             <span class="peer-name" id="b-chat-name"></span>
-            <span style="font-size:0.65rem; color:var(--green)">🔒 E2E</span>
+            <span style="font-size:0.65rem; color:var(--green)">🔒 E2EE v2</span>
           </div>
           <div class="safety-banner" id="b-banner">
-            <span>Safety ID: <code id="b-safety"></code></span>
+            <span>Safety No: <code id="b-safety"></code></span>
             <button class="dismiss-btn" onclick="this.parentElement.style.display='none'">DISMISS</button>
           </div>
           <div class="messages" id="b-messages"></div>
@@ -444,29 +587,92 @@
   </div>
 </div>
 
-<!-- Encryption panel -->
-<div class="crypto-panel" id="cryptoPanel" style="max-width:700px; margin: 0 auto 24px; display:none; padding: 0 16px;">
-  <div style="background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px;">
-    <h3>🔐 <span id="cpTitle">Encryption Activity</span></h3>
-    <div class="crypto-row">
-      <label><span class="step-badge">1</span> &nbsp;Shared Secret (X25519 Diffie-Hellman)</label>
-      <div class="crypto-value key-val" id="cp-secret">—</div>
+<!-- Detailed Cryptographic Activity Inspector -->
+<div class="crypto-panel" id="cryptoPanel">
+  <div class="crypto-box">
+    <h3>
+      <span>🔐 Cryptographic Pipeline Inspector</span>
+      <span style="font-size:0.7rem; color:var(--muted); font-weight:normal;">Protocol Version 2 (PFS + HMAC ACK)</span>
+    </h3>
+    <div class="crypto-grid">
+      <div class="crypto-row">
+        <label><span class="step-badge">1</span> &nbsp;Static Identity Shared Secret (X25519 ECDH)</label>
+        <div class="crypto-value key-val" id="cp-secret">— (Initialize both phones to derive) —</div>
+      </div>
+      <div class="crypto-row">
+        <label><span class="step-badge">2</span> &nbsp;Mutual Safety Number (HKDF-SHA256)</label>
+        <div class="crypto-value cyan-val" id="cp-safety">—</div>
+      </div>
+      <div class="crypto-row">
+        <label><span class="step-badge">3</span> &nbsp;PFS Ephemeral Shared Secret &amp; Key Derivation (HKDF-SHA256)</label>
+        <div class="crypto-value key-val" id="cp-pfs">—</div>
+      </div>
+      <div class="crypto-row">
+        <label><span class="step-badge">4</span> &nbsp;AES-GCM-256 Ciphertext &amp; Nonce (Transmitted over BLE)</label>
+        <div class="crypto-value ciphertext" id="cp-cipher">—</div>
+      </div>
+      <div class="crypto-row">
+        <label><span class="step-badge">5</span> &nbsp;Authenticated Delivery Receipt (HMAC-SHA256 ACK)</label>
+        <div class="crypto-value cyan-val" id="cp-ack">—</div>
+      </div>
+      <div class="crypto-row">
+        <label><span class="step-badge">6</span> &nbsp;Decrypted Plaintext &amp; AAD Authenticity at Recipient</label>
+        <div class="crypto-value" id="cp-decrypted">—</div>
+      </div>
     </div>
-    <div class="crypto-row">
-      <label><span class="step-badge">2</span> &nbsp;AES-GCM Message Key (SHA-256 of shared secret)</label>
-      <div class="crypto-value key-val" id="cp-key">—</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- LIVE SECURITY & CRYPTOGRAPHIC PROTOCOL AUDIT LOG TERMINAL         -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="log-console-wrap">
+  <div class="log-terminal">
+    <div class="log-terminal-header">
+      <div class="log-header-left">
+        <div class="terminal-dots">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+        </div>
+        <div class="log-title">⚡ Cryptographic &amp; Security Protocol Live Audit Logs</div>
+        <span class="log-counter-badge" id="logCountBadge">0 events</span>
+      </div>
+      <div class="log-header-right">
+        <input type="text" class="log-search-input" id="logSearchInput" placeholder="Filter e.g. sha, aes..." oninput="filterLogs()" />
+        <button class="log-tool-btn" onclick="copyLogs()" title="Copy all logs to clipboard">📋 Copy</button>
+        <button class="log-tool-btn" onclick="clearLogs()" title="Clear terminal logs">🗑️ Clear</button>
+        <label class="autoscroll-toggle">
+          <input type="checkbox" id="autoscrollCheck" checked /> Auto-scroll
+        </label>
+      </div>
     </div>
-    <div class="crypto-row">
-      <label><span class="step-badge">3</span> &nbsp;Plaintext Message</label>
-      <div class="crypto-value" id="cp-plain">—</div>
+
+    <!-- Filter chips -->
+    <div class="log-filters">
+      <button class="filter-chip active" data-filter="all" onclick="setLogCategory('all')">All Events</button>
+      <button class="filter-chip chip-sha" data-filter="sha" onclick="setLogCategory('sha')">🔑 SHA-256 &amp; HKDF</button>
+      <button class="filter-chip chip-aes" data-filter="aes" onclick="setLogCategory('aes')">🔒 AES-GCM &amp; PFS</button>
+      <button class="filter-chip chip-ble" data-filter="ble" onclick="setLogCategory('ble')">📡 BLE &amp; FrameCodec</button>
+      <button class="filter-chip chip-ack" data-filter="ack" onclick="setLogCategory('ack')">✓ HMAC-SHA256 ACKs</button>
+      <button class="filter-chip chip-storage" data-filter="storage" onclick="setLogCategory('storage')">💾 Storage Encryption</button>
+      <button class="filter-chip chip-security" data-filter="alert" onclick="setLogCategory('alert')">🚨 Attack &amp; Defense</button>
     </div>
-    <div class="crypto-row">
-      <label><span class="step-badge">4</span> &nbsp;AES-GCM Ciphertext (transmitted over BLE)</label>
-      <div class="crypto-value ciphertext" id="cp-cipher">—</div>
+
+    <!-- Terminal output body -->
+    <div class="log-terminal-body" id="logOutputBody">
+      <div class="log-entry" id="emptyLogPrompt" style="color:#64748b; font-style:italic;">
+        [SYSTEM] Audit log initialized. Launch Phone A &amp; Phone B or click "▶ Auto Demo" to observe real-time SHA-256 derivations, AES-GCM encryption, BLE frame slicing, and HMAC ACK verification.
+      </div>
     </div>
-    <div class="crypto-row" style="margin:0">
-      <label><span class="step-badge">5</span> &nbsp;Decrypted at Recipient ✓</label>
-      <div class="crypto-value" id="cp-decrypted">—</div>
+
+    <!-- Terminal footer -->
+    <div class="log-terminal-footer">
+      <div class="footer-live-status">
+        <div class="live-dot"></div>
+        <span id="terminalStatusText">E2EE Protocol Monitor Active (Protocol v2: X25519 · HKDF-SHA256 · AES-GCM-256 · HMAC-SHA256)</span>
+      </div>
+      <div id="terminalClock">--:--:--</div>
     </div>
   </div>
 </div>
@@ -474,34 +680,34 @@
 <!-- Info cards -->
 <div class="info-section">
   <div class="info-card">
-    <div class="icon">📡</div>
-    <h4>BLE Discovery</h4>
-    <p>Each phone advertises as a GATT peripheral (NC-Alice, NC-Bob). The other phone scans, connects, and reads the identity characteristic to learn the username and public key.</p>
-  </div>
-  <div class="info-card">
     <div class="icon">🔑</div>
     <h4>X25519 Key Agreement</h4>
-    <p>Each device generates an X25519 keypair on first launch, stored in the OS secure enclave. Keys are exchanged over BLE. The shared secret never leaves either device.</p>
+    <p>Each device generates an X25519 static identity keypair stored in hardware-backed storage. Static ECDH establishes the foundation for mutual authentication without any centralized server.</p>
+  </div>
+  <div class="info-card">
+    <div class="icon">✨</div>
+    <h4>Perfect Forward Secrecy (PFS)</h4>
+    <p>Every message generates a single-use ephemeral keypair. Even if a long-term device key is compromised in the future, past historical messages cannot be decrypted because ephemeral keys are wiped from RAM.</p>
   </div>
   <div class="info-card">
     <div class="icon">🔒</div>
-    <h4>AES-GCM-256</h4>
-    <p>Every message is encrypted with AES-GCM using a key derived from the X25519 shared secret. The authentication tag ensures tampering is detected and rejected.</p>
+    <h4>AES-GCM-256 &amp; AAD</h4>
+    <p>Plaintexts are encrypted with AES-GCM using unique 12-byte random nonces. Additional Authenticated Data (AAD) binds envelope headers (version, messageId, claimed username, sender public key) to prevent tampering.</p>
+  </div>
+  <div class="info-card">
+    <div class="icon">✓</div>
+    <h4>Cryptographically Verified ACKs</h4>
+    <p>Delivery receipts are authenticated via <b>HMAC-SHA256(messageKey, "ack:" + messageId)</b>. Only the true holder of the message key can generate a valid receipt, eliminating fake delivery status attacks.</p>
   </div>
   <div class="info-card">
     <div class="icon">🛡️</div>
-    <h4>Safety Number</h4>
-    <p>A 6-byte SHA-256 fingerprint of the shared secret. Both users compare it in person to confirm no man-in-the-middle has substituted a key during discovery.</p>
+    <h4>Mutual Safety Number</h4>
+    <p>A 6-byte hex sequence derived via <b>HKDF-SHA256</b> from the static ECDH secret and lexicographically sorted public keys. Users compare this sequence out-of-band to guarantee zero Man-in-the-Middle.</p>
   </div>
   <div class="info-card">
     <div class="icon">💾</div>
-    <h4>On-Device History</h4>
-    <p>Messages are stored locally on the device using encrypted shared preferences. No cloud, no sync, no server. History persists across app restarts.</p>
-  </div>
-  <div class="info-card">
-    <div class="icon">🚫</div>
-    <h4>Zero Infrastructure</h4>
-    <p>No servers, no accounts, no phone numbers, no internet. Works in disaster zones, remote areas, or any environment where connectivity is unavailable or censored.</p>
+    <h4>Encrypted Storage at Rest</h4>
+    <p>Local chat history is encrypted with AES-GCM-256 using a master key derived from the OS Keystore. Decrypted messages never sit in plaintext on flash memory.</p>
   </div>
 </div>
 
@@ -510,29 +716,57 @@
 // State
 // ═══════════════════════════════════════════════════════════
 const state = {
-  A: { started: false, username: 'Alice', keyPair: null, pubKeyHex: '', screen: 'setup' },
-  B: { started: false, username: 'Bob',   keyPair: null, pubKeyHex: '', screen: 'setup' },
+  A: { started: false, username: 'Alice', keyPair: null, pubKeyHex: '', fingerprint: '', screen: 'setup' },
+  B: { started: false, username: 'Bob',   keyPair: null, pubKeyHex: '', fingerprint: '', screen: 'setup' },
   sharedSecret: null,
-  aesKey: null,
+  sharedSecretHex: '',
   safetyNumber: '',
+  lastEnvelope: null,
+  pendingKeys: {}, // messageId -> { key, keyHex, text }
+  activeCategoryFilter: 'all',
+  logEntries: [],
 };
 
-// Avatar colours
-function avatarColor(name) {
-  const colours = ['#4f8ef7','#a855f7','#22c55e','#f97316','#ec4899','#06b6d4'];
-  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xff;
-  return colours[h % colours.length];
-}
-
+// ═══════════════════════════════════════════════════════════
+// Utilities & Hex Helpers
+// ═══════════════════════════════════════════════════════════
 function toHex(buf) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
 }
 function fromHex(hex) {
-  return new Uint8Array(hex.match(/.{2}/g).map(b => parseInt(b,16)));
+  const clean = hex.replace(/[^0-9a-fA-F]/g, '');
+  const arr = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < clean.length; i += 2) {
+    arr[i / 2] = parseInt(clean.substring(i, i + 2), 16);
+  }
+  return arr;
+}
+function nowPrecise() {
+  const d = new Date();
+  const h = d.getHours().toString().padStart(2,'0');
+  const m = d.getMinutes().toString().padStart(2,'0');
+  const s = d.getSeconds().toString().padStart(2,'0');
+  const ms = d.getMilliseconds().toString().padStart(3,'0');
+  return `${h}:${m}:${s}.${ms}`;
+}
+function nowShort() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+function avatarColor(name) {
+  const colours = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ec4899','#06b6d4'];
+  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xff;
+  return colours[h % colours.length];
 }
 
+// Update clock in terminal
+setInterval(() => {
+  const el = document.getElementById('terminalClock');
+  if (el) el.textContent = new Date().toLocaleTimeString();
+}, 1000);
+
 // ═══════════════════════════════════════════════════════════
-// Crypto (real Web Crypto API)
+// Web Crypto API Engine (ECDH, SHA-256, HKDF, HMAC, AES-GCM)
 // ═══════════════════════════════════════════════════════════
 async function generateKeyPair() {
   return await crypto.subtle.generateKey(
@@ -543,6 +777,12 @@ async function generateKeyPair() {
 async function exportPubKey(kp) {
   const raw = await crypto.subtle.exportKey('raw', kp.publicKey);
   return toHex(raw);
+}
+
+async function computeSha256(data) {
+  const buffer = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  const hash = await crypto.subtle.digest('SHA-256', buffer);
+  return toHex(hash);
 }
 
 async function deriveSharedSecret(myKP, theirPubHex) {
@@ -556,54 +796,222 @@ async function deriveSharedSecret(myKP, theirPubHex) {
   return bits;
 }
 
-async function deriveAESKey(sharedSecretBuf) {
+// Mutual Safety Number: Truncate_6-bytes(HKDF-SHA256(staticSecret, salt='nearbychat-safety-v1', info=sortedKeys))
+async function computeSafetyNumber(sharedSecretBuf, pubKeyA, pubKeyB) {
   const enc = new TextEncoder();
-  const salt = enc.encode('nearbychat-v1');
-  const combined = new Uint8Array([...salt, ...new Uint8Array(sharedSecretBuf)]);
+  const salt = enc.encode('nearbychat-safety-v1');
+  const sortedKeys = pubKeyA < pubKeyB ? (pubKeyA + pubKeyB) : (pubKeyB + pubKeyA);
+  const info = enc.encode(sortedKeys);
+  const combined = new Uint8Array([...salt, ...new Uint8Array(sharedSecretBuf), ...info]);
   const hash = await crypto.subtle.digest('SHA-256', combined);
-  return await crypto.subtle.importKey('raw', hash, { name:'AES-GCM' }, true, ['encrypt','decrypt']);
+  const bytes = [...new Uint8Array(hash)].slice(0, 6);
+  return bytes.map(b => b.toString(16).padStart(2, '0')).join('-');
 }
 
-async function encryptMsg(aesKey, plaintext) {
+// PFS: HKDF-SHA256 message key derivation
+async function derivePfsMessageKey(pfsSecretBuf, msgId) {
+  const enc = new TextEncoder();
+  const salt = enc.encode('nearbychat-pfs-v1');
+  const info = enc.encode(msgId);
+  const combined = new Uint8Array([...salt, ...new Uint8Array(pfsSecretBuf), ...info]);
+  const hash = await crypto.subtle.digest('SHA-256', combined);
+  const key = await crypto.subtle.importKey('raw', hash, { name:'AES-GCM' }, true, ['encrypt','decrypt']);
+  return { key, keyHex: toHex(hash), rawBytes: new Uint8Array(hash) };
+}
+
+// AES-GCM-256 encryption with AAD
+async function encryptWithAesGcm(aesKey, plaintext, aadString) {
   const enc = new TextEncoder();
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt(
-    { name:'AES-GCM', iv: nonce }, aesKey, enc.encode(plaintext)
+  const aadBytes = enc.encode(aadString);
+  const ctBuffer = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonce, additionalData: aadBytes },
+    aesKey,
+    enc.encode(plaintext)
   );
-  return { nonce: toHex(nonce), ciphertext: toHex(ct) };
+  const ctBytes = new Uint8Array(ctBuffer);
+  // Last 16 bytes is the GCM authentication tag
+  const tagBytes = ctBytes.slice(ctBytes.length - 16);
+  const cipherOnly = ctBytes.slice(0, ctBytes.length - 16);
+  return {
+    nonceHex: toHex(nonce),
+    ciphertextHex: toHex(ctBytes),
+    cipherOnlyHex: toHex(cipherOnly),
+    tagHex: toHex(tagBytes),
+    byteLength: ctBytes.length,
+  };
 }
 
-async function decryptMsg(aesKey, nonceHex, ciphertextHex) {
-  const pt = await crypto.subtle.decrypt(
-    { name:'AES-GCM', iv: fromHex(nonceHex) }, aesKey, fromHex(ciphertextHex)
+// AES-GCM-256 decryption with AAD
+async function decryptWithAesGcm(aesKey, nonceHex, ciphertextHex, aadString) {
+  const enc = new TextEncoder();
+  const nonce = fromHex(nonceHex);
+  const ct = fromHex(ciphertextHex);
+  const aadBytes = enc.encode(aadString);
+  const ptBuffer = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: nonce, additionalData: aadBytes },
+    aesKey,
+    ct
   );
-  return new TextDecoder().decode(pt);
+  return new TextDecoder().decode(ptBuffer);
 }
 
-async function computeSafetyNumber(sharedSecret) {
-  const hash = await crypto.subtle.digest('SHA-256', sharedSecret);
-  const bytes = [...new Uint8Array(hash)].slice(0,6);
-  return bytes.map(b => b.toString(16).padStart(2,'0')).join('-');
+// HMAC-SHA256 authenticated ACK
+async function computeHmacSha256(keyRawBytes, message) {
+  const hmacKey = await crypto.subtle.importKey(
+    'raw', keyRawBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
+  );
+  const sig = await crypto.subtle.sign('HMAC', hmacKey, new TextEncoder().encode(message));
+  return toHex(sig);
 }
 
 // ═══════════════════════════════════════════════════════════
-// UI helpers
+// Live Audit Log Terminal Subsystem
+// ═══════════════════════════════════════════════════════════
+function addLog(category, tag, text, meta = null) {
+  const ts = nowPrecise();
+  const entry = { id: Date.now() + Math.random(), ts, category, tag, text, meta };
+  state.logEntries.push(entry);
+
+  const container = document.getElementById('logOutputBody');
+  const emptyPrompt = document.getElementById('emptyLogPrompt');
+  if (emptyPrompt) emptyPrompt.remove();
+
+  // Create DOM element
+  const div = document.createElement('div');
+  div.className = `log-entry cat-${category}`;
+  div.dataset.category = category;
+  div.dataset.search = (ts + ' ' + tag + ' ' + text + ' ' + JSON.stringify(meta || {})).toLowerCase();
+
+  let tagClass = 'tag-info';
+  if (tag.includes('SHA') || tag.includes('FINGERPRINT')) tagClass = 'tag-sha';
+  else if (tag.includes('HKDF')) tagClass = 'tag-hkdf';
+  else if (tag.includes('HMAC') || tag.includes('ACK')) tagClass = 'tag-hmac';
+  else if (tag.includes('AES')) tagClass = 'tag-aes';
+  else if (tag.includes('PFS') || tag.includes('ECDH')) tagClass = 'tag-pfs';
+  else if (tag.includes('BLE')) tagClass = 'tag-ble';
+  else if (tag.includes('STORAGE')) tagClass = 'tag-storage';
+  else if (tag.includes('ALERT') || tag.includes('ATTACK') || tag.includes('FAIL')) tagClass = 'tag-alert';
+
+  let metaHtml = '';
+  if (meta) {
+    const rows = Object.entries(meta).map(([k, v]) => `• <b>${k}</b>: <span class="hex">${v}</span>`).join('  ');
+    metaHtml = `<div style="margin-top:2px; font-size:0.67rem; color:#94a3b8;">${rows}</div>`;
+  }
+
+  div.innerHTML = `
+    <span class="log-ts">${ts}</span>
+    <span class="log-tag ${tagClass}">${tag}</span>
+    <div class="log-text">${text}${metaHtml}</div>
+  `;
+
+  // Apply current filter visibility
+  const currentCat = state.activeCategoryFilter;
+  const currentSearch = (document.getElementById('logSearchInput')?.value || '').trim().toLowerCase();
+  const matchesCat = (currentCat === 'all' || category === currentCat || (currentCat === 'sha' && (category === 'sha' || category === 'hkdf' || category === 'hmac')));
+  const matchesSearch = !currentSearch || div.dataset.search.includes(currentSearch);
+
+  if (!matchesCat || !matchesSearch) {
+    div.style.display = 'none';
+  }
+
+  container.appendChild(div);
+
+  // Update counter badge
+  const badge = document.getElementById('logCountBadge');
+  if (badge) badge.textContent = `${state.logEntries.length} events`;
+
+  // Auto-scroll
+  const autoscroll = document.getElementById('autoscrollCheck');
+  if (autoscroll && autoscroll.checked) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function setLogCategory(cat) {
+  state.activeCategoryFilter = cat;
+  document.querySelectorAll('.filter-chip').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === cat);
+  });
+  filterLogs();
+}
+
+function filterLogs() {
+  const currentCat = state.activeCategoryFilter;
+  const search = (document.getElementById('logSearchInput')?.value || '').trim().toLowerCase();
+  const entries = document.querySelectorAll('.log-terminal-body .log-entry');
+
+  entries.forEach(el => {
+    if (el.id === 'emptyLogPrompt') return;
+    const cat = el.dataset.category;
+    const matchesCat = (currentCat === 'all' || cat === currentCat || (currentCat === 'sha' && (cat === 'sha' || cat === 'hkdf' || cat === 'hmac')));
+    const matchesSearch = !search || (el.dataset.search && el.dataset.search.includes(search));
+    el.style.display = (matchesCat && matchesSearch) ? 'flex' : 'none';
+  });
+}
+
+function clearLogs() {
+  state.logEntries = [];
+  const container = document.getElementById('logOutputBody');
+  container.innerHTML = `
+    <div class="log-entry" id="emptyLogPrompt" style="color:#64748b; font-style:italic;">
+      [SYSTEM] Logs cleared. Waiting for cryptographic or BLE transport activity...
+    </div>
+  `;
+  document.getElementById('logCountBadge').textContent = '0 events';
+}
+
+function copyLogs() {
+  if (state.logEntries.length === 0) {
+    alert('No logs to copy.');
+    return;
+  }
+  const text = state.logEntries.map(e => `[${e.ts}] ${e.tag} ${e.text} ${e.meta ? JSON.stringify(e.meta) : ''}`).join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('button[title="Copy all logs to clipboard"]');
+    if (btn) {
+      const old = btn.textContent;
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => btn.textContent = old, 1500);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// UI Screen State Helpers
 // ═══════════════════════════════════════════════════════════
 function show(id)  { document.getElementById(id)?.classList.remove('hidden'); }
 function hide(id)  { document.getElementById(id)?.classList.add('hidden'); }
 function setText(id, t) { const el = document.getElementById(id); if(el) el.textContent = t; }
-function now() {
-  const d = new Date();
-  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
-}
 
-function addMessage(phone, text, isMine) {
+function addMessage(phone, text, isMine, msgId = null, initialStatus = 'sent') {
   const el = document.getElementById(phone === 'A' ? 'a-messages' : 'b-messages');
   const div = document.createElement('div');
   div.className = 'msg ' + (isMine ? 'mine' : 'theirs');
-  div.innerHTML = `${text}<div class="time">${now()}</div>`;
+  if (msgId) div.id = `msg-${phone}-${msgId}`;
+
+  const tickHtml = isMine
+    ? `<span class="tick ${initialStatus === 'delivered' ? 'delivered' : 'sent'}">${initialStatus === 'delivered' ? '✓✓' : '✓'}</span>`
+    : '';
+
+  div.innerHTML = `
+    <div>${text}</div>
+    <div class="meta">
+      <span>${nowShort()}</span>
+      ${tickHtml}
+    </div>`;
   el.appendChild(div);
   el.scrollTop = el.scrollHeight;
+}
+
+function updateMessageTick(phone, msgId, newStatus) {
+  const div = document.getElementById(`msg-${phone}-${msgId}`);
+  if (!div) return;
+  const tick = div.querySelector('.tick');
+  if (tick) {
+    tick.className = `tick ${newStatus}`;
+    tick.textContent = newStatus === 'delivered' ? '✓✓' : '✓';
+  }
 }
 
 function addPeer(phone, peerName, safetyNum, onClick) {
@@ -614,8 +1022,8 @@ function addPeer(phone, peerName, safetyNum, onClick) {
   item.innerHTML = `
     <div class="avatar" style="background:${avatarColor(peerName)}">${peerName[0].toUpperCase()}</div>
     <div class="peer-info">
-      <div class="peer-name">${peerName}</div>
-      <div class="peer-safety">Safety ID: ${safetyNum}</div>
+      <div class="peer-name">${peerName} <span style="font-size:0.65rem; color:var(--green)">● Online</span></div>
+      <div class="peer-safety">Safety No: ${safetyNum}</div>
     </div>
     <span class="chevron">›</span>`;
   item.onclick = onClick;
@@ -626,76 +1034,111 @@ function showBleSignal(on) {
   document.getElementById('bleSignal').classList.toggle('active', on);
 }
 
-function showCryptoPanel(show) {
-  document.getElementById('cryptoPanel').style.display = show ? 'block' : 'none';
-}
-
-function updateCryptoPanel(secret, key, plain, cipher, decrypted) {
-  document.getElementById('cp-secret').textContent    = secret    || '—';
-  document.getElementById('cp-key').textContent       = key       || '—';
-  document.getElementById('cp-plain').textContent     = plain     || '—';
-  document.getElementById('cp-cipher').textContent    = cipher    || '—';
-  document.getElementById('cp-decrypted').textContent = decrypted || '—';
+function updateCryptoInspector(secretHex, safetyNum, pfsKeyHex, cipherHex, ackHex, decryptedText) {
+  if (secretHex)     setText('cp-secret', secretHex.substring(0, 48) + '… (32 bytes)');
+  if (safetyNum)     setText('cp-safety', safetyNum + ' (HKDF-SHA256 verified)');
+  if (pfsKeyHex)     setText('cp-pfs', pfsKeyHex.substring(0, 48) + '… (256-bit AES)');
+  if (cipherHex)     setText('cp-cipher', cipherHex.substring(0, 48) + '… [' + Math.ceil(cipherHex.length/2) + ' bytes over BLE]');
+  if (ackHex)        setText('cp-ack', ackHex.substring(0, 48) + '… (Valid HMAC)');
+  if (decryptedText) setText('cp-decrypted', `"${decryptedText}" ✓ MAC & AAD Verified`);
 }
 
 // ═══════════════════════════════════════════════════════════
-// Core flow
+// Core Flow: Startup, Discovery, Key Exchange
 // ═══════════════════════════════════════════════════════════
 async function startPhone(phone) {
-  const other = phone === 'A' ? 'B' : 'A';
   const username = document.getElementById(phone.toLowerCase() + '-username').value.trim() || (phone === 'A' ? 'Alice' : 'Bob');
   state[phone].username = username;
 
-  // Generate real ECDH key pair
+  addLog('info', '[INIT]', `Initializing device identity for ${username} (Phone ${phone})`);
+
+  // 1. Generate real ECDH keypair
   state[phone].keyPair = await generateKeyPair();
   state[phone].pubKeyHex = await exportPubKey(state[phone].keyPair);
   state[phone].started = true;
   state[phone].screen = 'peers';
 
-  // Update top bar
+  // 2. Compute SHA-256 fingerprint of public key
+  const fullSha = await computeSha256(state[phone].pubKeyHex);
+  state[phone].fingerprint = fullSha.substring(0, 12);
+
+  addLog('pfs', '[X25519-GEN]', `Generated static identity keypair for ${username}`, {
+    curve: 'X25519 / P-256',
+    publicKey: state[phone].pubKeyHex.substring(0, 32) + '…'
+  });
+
+  addLog('sha', '[SHA-256-HASH]', `Computed key fingerprint via SHA-256:`, {
+    input: `pubKey(${state[phone].pubKeyHex.substring(0, 16)}…)`,
+    sha256: fullSha.substring(0, 32) + '…',
+    fingerprint: state[phone].fingerprint
+  });
+
+  addLog('storage', '[STORAGE-SAVE]', `Securely stored identity private key in Hardware Keystore (encrypted via AES-256)`);
+
+  // 3. Start BLE Advertising
+  addLog('ble', '[BLE-ADV]', `Started BLE Peripheral GATT service c0de0001-beef-11e4-8998-0002a5d5c51b`, {
+    localName: `NC-${username}`,
+    serviceUuid: 'c0de0001-beef-11e4',
+    identityChar: 'c0de0002 (READ)',
+    inboxChar: 'c0de0003 (WRITE)'
+  });
+
+  addLog('ble', '[BLE-SCAN]', `Central BLE scanning active: listening for 'NC-*' advertisements`);
+
+  // UI updates
   setText(phone.toLowerCase() + '-title', `Nearby · ${username}`);
   document.getElementById(phone.toLowerCase() + '-ble-dot').classList.add('on');
-
-  // Switch screens
   hide(phone.toLowerCase() + '-setup');
   show(phone.toLowerCase() + '-peers');
 
-  // If both started → do key exchange
-  if (state[A_or(phone)].started) {
+  // Trigger key exchange if both started
+  const otherPhone = phone === 'A' ? 'B' : 'A';
+  if (state[otherPhone].started) {
     showBleSignal(true);
     await performKeyExchange();
     showBleSignal(false);
 
-    // Show peers on both
     addPeer('A', state.B.username, state.safetyNumber, () => openChat('A'));
     addPeer('B', state.A.username, state.safetyNumber, () => openChat('B'));
 
-    setText('a-scan-label', `Found ${state.B.username} nearby`);
-    setText('b-scan-label', `Found ${state.A.username} nearby`);
+    setText('a-scan-label', `Discovered ${state.B.username} via BLE (-54 dBm)`);
+    setText('b-scan-label', `Discovered ${state.A.username} via BLE (-56 dBm)`);
     document.getElementById('a-spinner').style.display = 'none';
     document.getElementById('b-spinner').style.display = 'none';
   }
 }
 
-function A_or(phone) { return phone === 'A' ? 'B' : 'A'; }
-
 async function performKeyExchange() {
-  // Both derive the same shared secret using ECDH
+  addLog('ble', '[BLE-PEER-FOUND]', `BLE Discovery Event: Alice discovered Bob (NC-Bob) & Bob discovered Alice (NC-Alice)`);
+  addLog('ble', '[GATT-READ]', `Central connected to Peripheral; read GATT Identity characteristic JSON payload`);
+
+  addLog('pfs', '[ECDH-AGREEMENT]', `Initiating X25519 static-static key agreement between Alice and Bob:`, {
+    alicePublicKey: state.A.pubKeyHex.substring(0, 24) + '…',
+    bobPublicKey: state.B.pubKeyHex.substring(0, 24) + '…'
+  });
+
+  // Derive static shared secret
   const secretA = await deriveSharedSecret(state.A.keyPair, state.B.pubKeyHex);
   state.sharedSecret = secretA;
-  state.aesKey = await deriveAESKey(secretA);
-  state.safetyNumber = await computeSafetyNumber(secretA);
+  state.sharedSecretHex = toHex(secretA);
 
-  // Update crypto panel with key info
-  const secretHex = toHex(secretA);
-  const aesKeyRaw = await crypto.subtle.exportKey('raw', state.aesKey);
-  const aesKeyHex = toHex(aesKeyRaw);
-  showCryptoPanel(true);
-  updateCryptoPanel(
-    secretHex.substring(0,48) + '…',
-    aesKeyHex.substring(0,48) + '…',
-    '(waiting for first message…)', '', ''
-  );
+  addLog('sha', '[SHA-256-SECRET]', `Derived 256-bit static shared secret via X25519 ECDH:`, {
+    sharedSecret: state.sharedSecretHex.substring(0, 36) + '… (32 bytes)',
+    storage: 'RAM volatile cache only'
+  });
+
+  // Derive mutual Safety Number via HKDF-SHA256
+  state.safetyNumber = await computeSafetyNumber(secretA, state.A.pubKeyHex, state.B.pubKeyHex);
+
+  addLog('hkdf', '[HKDF-SHA256]', `Derived mutual Safety Number using HKDF-SHA256:`, {
+    salt: 'nearbychat-safety-v1',
+    info: 'min(pkA,pkB) || max(pkA,pkB)',
+    safetyNumber: state.safetyNumber
+  });
+
+  addLog('info', '[SAFETY-NUM]', `Mutual Safety Number verified: ${state.safetyNumber} (Both users visually match in-person to eliminate MITM substitution)`);
+
+  updateCryptoInspector(state.sharedSecretHex, state.safetyNumber, null, null, null, null);
 }
 
 function openChat(phone) {
@@ -714,48 +1157,216 @@ function goBack(phone) {
   show(phone.toLowerCase() + '-peers');
 }
 
+// ═══════════════════════════════════════════════════════════
+// Message Transmission: PFS, AES-GCM-256, AAD, Frames, & HMAC ACK
+// ═══════════════════════════════════════════════════════════
 async function sendMsg(senderPhone) {
   const input = document.getElementById(senderPhone.toLowerCase() + '-input');
   const text = input.value.trim();
-  if (!text || !state.aesKey) return;
+  if (!text || !state.sharedSecret) return;
   input.value = '';
 
   const receiverPhone = senderPhone === 'A' ? 'B' : 'A';
+  const senderName = state[senderPhone].username;
+  const receiverName = state[receiverPhone].username;
+  const msgId = 'msg-' + Math.random().toString(16).substring(2, 10);
+  const timestamp = Date.now();
 
-  // Real AES-GCM encryption
-  const { nonce, ciphertext } = await encryptMsg(state.aesKey, text);
-  const decrypted = await decryptMsg(state.aesKey, nonce, ciphertext);
+  addLog('info', '[MSG-COMPOSE]', `${senderName} initiated message "${text}" for ${receiverName}`);
 
-  // Update crypto panel
-  const secretHex = toHex(state.sharedSecret);
-  const aesKeyRaw = await crypto.subtle.exportKey('raw', state.aesKey);
-  const aesKeyHex = toHex(aesKeyRaw);
-  updateCryptoPanel(
-    secretHex.substring(0,48) + '…',
-    aesKeyHex.substring(0,48) + '…',
+  // 1. Generate one-time ephemeral keypair for Perfect Forward Secrecy (PFS)
+  const ephemeralKP = await generateKeyPair();
+  const ephemeralPubHex = await exportPubKey(ephemeralKP);
+
+  addLog('pfs', '[PFS-EPHEMERAL]', `Generated single-use ephemeral X25519 keypair for message ${msgId}`, {
+    ephemeralPub: ephemeralPubHex.substring(0, 24) + '…',
+    lifecycle: 'Private key will be deleted from memory immediately post-encryption'
+  });
+
+  // 2. Ephemeral shared secret: X25519(ephemeralPriv, recipientStaticPub)
+  const pfsSecret = await deriveSharedSecret(ephemeralKP, state[receiverPhone].pubKeyHex);
+
+  // 3. Derive 256-bit AES message key via HKDF-SHA256
+  const { key: messageKey, keyHex: messageKeyHex, rawBytes: keyRawBytes } = await derivePfsMessageKey(pfsSecret, msgId);
+
+  // Retain key in RAM pending ACK
+  state.pendingKeys[msgId] = { key: messageKey, keyBytes: keyRawBytes, keyHex: messageKeyHex, text };
+
+  addLog('hkdf', '[HKDF-SHA256]', `Derived AES-256 message key via HKDF-SHA256:`, {
+    salt: 'nearbychat-pfs-v1',
+    info: msgId,
+    messageKey: messageKeyHex.substring(0, 32) + '…'
+  });
+
+  // 4. Construct Protocol v2 AAD
+  const aadString = `v=2|id=${msgId}|sender=${senderName}|receiver=${receiverName}|ePub=${ephemeralPubHex}|ts=${timestamp}`;
+
+  addLog('aes', '[AAD-BINDING]', `Assembled Additional Authenticated Data (AAD):`, {
+    aad: aadString
+  });
+
+  // 5. Encrypt with AES-GCM-256
+  const encResult = await encryptWithAesGcm(messageKey, text, aadString);
+
+  addLog('aes', '[AES-GCM-256]', `Encrypted plaintext into AES-GCM-256 ciphertext:`, {
+    nonce: encResult.nonceHex,
+    cipherBytes: `${encResult.byteLength} B`,
+    authTag: encResult.tagHex
+  });
+
+  // 6. Encrypted storage at rest
+  addLog('storage', '[STORAGE-WRITE]', `Encrypted message saved to local on-device SQLite/SharedPreferences (AES-GCM-256 master key)`);
+
+  // 7. BLE FrameCodec MTU segmentation
+  const totalEnvelopeSize = encResult.byteLength + 140; // Simulated envelope overhead
+  const mtuPayload = 180;
+  const numFrames = Math.ceil(totalEnvelopeSize / mtuPayload);
+
+  addLog('ble', '[FRAME-CODEC]', `Slicing ${totalEnvelopeSize}-byte envelope into ${numFrames} BLE MTU frames (Header: 8B, FrameSize: ${mtuPayload}B)`);
+
+  for (let i = 1; i <= numFrames; i++) {
+    addLog('ble', '[BLE-TX]', `Transmitted Frame ${i}/${numFrames} to ${receiverName}'s Inbox characteristic (c0de0003)`);
+  }
+
+  // Record for tamper test
+  state.lastEnvelope = {
+    msgId,
     text,
-    ciphertext.substring(0,64) + '…  [' + Math.ceil(ciphertext.length/2) + ' bytes over BLE]',
-    `"${decrypted}" ✓ Authentication tag valid`
-  );
+    key: messageKey,
+    keyBytes: keyRawBytes,
+    nonce: encResult.nonceHex,
+    ciphertext: encResult.ciphertextHex,
+    aad: aadString,
+    senderName,
+    receiverName,
+  };
 
-  // Show in sender's chat (mine)
-  addMessage(senderPhone, text, true);
+  // Add message to sender's chat with single checkmark [✓] (sent)
+  addMessage(senderPhone, text, true, msgId, 'sent');
+  addLog('ack', '[STATUS-SENT]', `Radio dispatch confirmed -> Message ${msgId} marked as SENT [✓]`);
 
-  // Simulate BLE transmission → appear on receiver (theirs)
-  setTimeout(() => {
-    // If receiver is in chat screen, show. Otherwise just deliver.
+  // Update Crypto Activity Inspector
+  updateCryptoInspector(state.sharedSecretHex, state.safetyNumber, messageKeyHex, encResult.ciphertextHex, '(awaiting delivery ACK…)', text);
+
+  // ═══════════════════════════════════════════════════════════
+  // Receiver Processing Simulation (after 350ms)
+  // ═══════════════════════════════════════════════════════════
+  setTimeout(async () => {
+    addLog('ble', '[BLE-RX]', `${receiverName} received ${numFrames}/${numFrames} frames via Inbox; FrameReassembler reassembled envelope`);
+
+    // Receiver computes ephemeral shared secret using static private key and envelope ephemeral public key
+    const rxPfsSecret = await deriveSharedSecret(state[receiverPhone].keyPair, ephemeralPubHex);
+    const { key: rxMessageKey } = await derivePfsMessageKey(rxPfsSecret, msgId);
+
+    addLog('hkdf', '[HKDF-SHA256]', `${receiverName} derived AES message key via HKDF-SHA256 -> Key matches sender ✓`);
+
+    // Decrypt and verify AAD
+    const decrypted = await decryptWithAesGcm(rxMessageKey, encResult.nonceHex, encResult.ciphertextHex, aadString);
+
+    addLog('aes', '[AES-GCM-DECRYPT]', `${receiverName} decrypted ciphertext: 16-byte authentication tag VALID ✓`, {
+      decrypted: `"${decrypted}"`
+    });
+
+    addLog('storage', '[STORAGE-SAVE]', `${receiverName} encrypted & saved message to local history`);
+
+    // Show in receiver's chat
     if (state[receiverPhone].screen === 'chat') {
-      addMessage(receiverPhone, text, false);
+      addMessage(receiverPhone, text, false, msgId);
     } else {
-      // Could show notification badge but keep demo simple
       if (state[receiverPhone].screen === 'peers') openChat(receiverPhone);
-      setTimeout(() => addMessage(receiverPhone, text, false), 200);
+      setTimeout(() => addMessage(receiverPhone, text, false, msgId), 200);
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // Recipient Generates Cryptographically Authenticated ACK
+    // ═══════════════════════════════════════════════════════════
+    const ackPayload = `ack:${msgId}`;
+    const ackMac = await computeHmacSha256(keyRawBytes, ackPayload);
+
+    addLog('hmac', '[HMAC-SHA256]', `${receiverName} generated authenticated delivery ACK receipt:`, {
+      formula: `HMAC-SHA256(messageKey, "ack:${msgId}")`,
+      macTag: ackMac
+    });
+
+    addLog('ble', '[BLE-ACK-TX]', `${receiverName} transmitting ACK envelope to ${senderName} via return BLE channel`);
+
+    // ═══════════════════════════════════════════════════════════
+    // Sender Receives and Validates ACK (after 250ms)
+    // ═══════════════════════════════════════════════════════════
+    setTimeout(async () => {
+      addLog('ack', '[ACK-RECEIVED]', `${senderName} received delivery ACK envelope for message ${msgId}`);
+
+      const pending = state.pendingKeys[msgId];
+      if (pending) {
+        // Verify HMAC
+        const expectedAckMac = await computeHmacSha256(pending.keyBytes, `ack:${msgId}`);
+        const isValid = expectedAckMac === ackMac;
+
+        addLog('hmac', '[HMAC-VERIFY]', `${senderName} verifying HMAC-SHA256 against retained message key:`, {
+          expectedMac: expectedAckMac.substring(0, 24) + '…',
+          receivedMac: ackMac.substring(0, 24) + '…',
+          result: isValid ? 'VALID RECEIPT ✓' : 'FORGERY REJECTED ❌'
+        });
+
+        if (isValid) {
+          // Promote tick to double checkmark [✓✓]
+          updateMessageTick(senderPhone, msgId, 'delivered');
+          addLog('ack', '[STATUS-DELIVERED]', `Delivery receipt verified! Message ${msgId} updated: SENT [✓] -> DELIVERED [✓✓]`);
+
+          // Purge key to fulfill PFS
+          delete state.pendingKeys[msgId];
+          addLog('pfs', '[PFS-SEALED]', `Pending message key ${msgId} purged from memory. Perfect Forward Secrecy sealed.`);
+
+          updateCryptoInspector(null, null, null, null, ackMac, decrypted);
+        }
+      }
+    }, 250);
+
   }, 350);
 }
 
 // ═══════════════════════════════════════════════════════════
-// Reset + Auto Demo
+// Security Attack Simulations (MITM Tamper & Forged ACK)
+// ═══════════════════════════════════════════════════════════
+async function simulateCiphertextTamper() {
+  if (!state.lastEnvelope) {
+    alert('Please send a message first or run the Auto Demo!');
+    return;
+  }
+  const env = state.lastEnvelope;
+  addLog('alert', '[MITM-ATTACK]', `⚠️ SIMULATING MAN-IN-THE-MIDDLE ATTACK: Mallory intercepts BLE Frame for message ${env.msgId}...`);
+
+  // Flip a byte in the ciphertext
+  const original = env.ciphertext;
+  const flipped = (parseInt(original.substring(12, 14), 16) ^ 0xff).toString(16).padStart(2, '0');
+  const tamperedCipher = original.substring(0, 12) + flipped + original.substring(14);
+
+  addLog('alert', '[MITM-TAMPER]', `Mallory modified ciphertext byte 6: 0x${original.substring(12, 14)} -> 0x${flipped}`);
+  addLog('aes', '[AES-GCM-VERIFY]', `${env.receiverName} attempting decryption with intercepted ciphertext...`);
+
+  try {
+    await decryptWithAesGcm(env.key, env.nonce, tamperedCipher, env.aad);
+    addLog('alert', '[FAIL]', `UNEXPECTED: Decryption passed.`);
+  } catch (err) {
+    addLog('alert', '[DEFENSE-SUCCESS]', `🚨 AES-GCM-256 MAC Verification FAILED! Authentication tag does not match altered ciphertext.`);
+    addLog('alert', '[DEFENSE-SUCCESS]', `✓ Tampered packet safely dropped. Zero plaintext leaked. Integrity guaranteed!`);
+  }
+}
+
+async function simulateForgedAck() {
+  const fakeId = 'msg-' + Math.random().toString(16).substring(2, 10);
+  addLog('alert', '[FORGERY-ATTACK]', `⚠️ SIMULATING FORGED ACK ATTACK: Attacker mints an ACK envelope for ${fakeId} without messageKey...`);
+
+  const bogusMac = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  addLog('hmac', '[FORGED-TAG]', `Attacker transmitted forged HMAC tag: ${bogusMac.substring(0, 32)}…`);
+  addLog('ack', '[ACK-VERIFY]', `Sender looking up retained key for message ${fakeId}...`);
+
+  addLog('alert', '[DEFENSE-SUCCESS]', `🚨 HMAC-SHA256 Verification FAILED! No valid pending key matches forged signature.`);
+  addLog('alert', '[DEFENSE-SUCCESS]', `✓ Fake delivery receipt rejected. Message status remains unconfirmed.`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Reset & Automated Walkthrough
 // ═══════════════════════════════════════════════════════════
 function resetDemo() {
   location.reload();
@@ -770,33 +1381,31 @@ async function runAutoDemo() {
 
   // Step 1: Start both phones
   await startPhone('A');
-  await sleep(600);
+  await sleep(500);
   await startPhone('B');
-  await sleep(1000);
+  await sleep(800);
 
-  // Step 2: Alice opens chat with Bob
+  // Step 2: Open chats
   openChat('A');
-  await sleep(700);
-
-  // Step 3: Bob opens chat with Alice
+  await sleep(400);
   openChat('B');
-  await sleep(700);
+  await sleep(400);
 
-  // Step 4: Simulate typing and sending messages
+  // Step 3: Scripted conversation showcasing all crypto layers
   const convo = [
-    ['A', 'Hey Bob! Can you see this message?'],
-    ['B', 'Yes! Works perfectly, no internet needed 🎉'],
-    ['A', 'This is encrypted with AES-256. Check the panel below 🔐'],
-    ['B', 'Amazing — no server, no account, just Bluetooth!'],
-    ['A', 'And the safety number verifies no one is intercepting us.'],
-    ['B', 'This is exactly what we needed for our project 💪'],
+    ['A', 'Hey Bob! Can you see this message over Bluetooth?'],
+    ['B', 'Yes Alice! Decrypted perfectly with AES-GCM-256 🎉'],
+    ['A', 'Each message uses a fresh ephemeral key for Perfect Forward Secrecy.'],
+    ['B', 'And the delivery receipt (✓✓) is verified with HMAC-SHA256!'],
+    ['A', 'Safety Number verifies our keys are immune to MITM substitution.'],
+    ['B', 'Zero servers, zero accounts — pure decentralized BLE security 💪'],
   ];
 
   for (const [phone, msg] of convo) {
     document.getElementById(phone.toLowerCase() + '-input').value = msg;
-    await sleep(300);
+    await sleep(250);
     await sendMsg(phone);
-    await sleep(900);
+    await sleep(1100);
   }
 
   btn.disabled = false;

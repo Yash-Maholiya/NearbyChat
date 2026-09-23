@@ -5,9 +5,15 @@ import 'package:nearby_chat/services/frame_codec.dart';
 
 void main() {
   group('FrameCodec & FrameReassembler Tests', () {
-    test('Fragment empty data returns empty list', () {
+    test('Fragment empty data returns single empty frame and reassembles safely', () {
       final frames = FrameCodec.fragment(Uint8List(0));
-      expect(frames, isEmpty);
+      expect(frames.length, equals(1));
+      expect(frames[0].length, equals(FrameCodec.headerSize));
+
+      final reassembler = FrameReassembler();
+      final assembled = reassembler.processFrame(frames[0]);
+      expect(assembled, isNotNull);
+      expect(assembled!.isEmpty, isTrue);
     });
 
     test('Data smaller than MTU yields single frame', () {
@@ -19,7 +25,6 @@ void main() {
     });
 
     test('Large payload is correctly sliced and reassembled in-order', () {
-      // 1000 bytes of arbitrary data
       final random = Random(42);
       final originalData = Uint8List.fromList(List.generate(1000, (_) => random.nextInt(256)));
 
@@ -31,7 +36,7 @@ void main() {
       Uint8List? assembled;
 
       for (int i = 0; i < frames.length; i++) {
-        final result = reassembler.processFrame(frames[i]);
+        final result = reassembler.processFrame(frames[i], senderId: 'deviceA');
         if (i == frames.length - 1) {
           assembled = result;
         } else {
@@ -41,6 +46,27 @@ void main() {
 
       expect(assembled, isNotNull);
       expect(assembled, equals(originalData));
+    });
+
+    test('Different senders with colliding hash do not corrupt each other', () {
+      final dataA = Uint8List.fromList([10, 20, 30, 40]);
+      final dataB = Uint8List.fromList([99, 88, 77, 66]);
+
+      // Both use same messageIdHash: 777
+      final framesA = FrameCodec.fragment(dataA, maxFrameSize: 12, messageIdHash: 777);
+      final framesB = FrameCodec.fragment(dataB, maxFrameSize: 12, messageIdHash: 777);
+
+      final reassembler = FrameReassembler();
+
+      // Interleave frames from senderA and senderB
+      reassembler.processFrame(framesA[0], senderId: 'senderA');
+      reassembler.processFrame(framesB[0], senderId: 'senderB');
+
+      final resultA = reassembler.processFrame(framesA[1], senderId: 'senderA');
+      final resultB = reassembler.processFrame(framesB[1], senderId: 'senderB');
+
+      expect(resultA, equals(dataA));
+      expect(resultB, equals(dataB));
     });
 
     test('Out-of-order frame arrival reassembles into correct byte sequence', () {
@@ -57,7 +83,7 @@ void main() {
       Uint8List? assembled;
 
       for (final frame in shuffled) {
-        final result = reassembler.processFrame(frame);
+        final result = reassembler.processFrame(frame, senderId: 'device1');
         if (result != null) {
           assembled = result;
         }
@@ -75,7 +101,7 @@ void main() {
 
       // Truncate frame to fewer bytes than specified in header
       final truncated = frames[0].sublist(0, frames[0].length - 2);
-      final result = reassembler.processFrame(truncated);
+      final result = reassembler.processFrame(truncated, senderId: 'device1');
 
       expect(result, isNull);
     });

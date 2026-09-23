@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nearby_chat/models/chat_message.dart';
 import 'package:nearby_chat/services/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('StorageService Tests', () {
     late StorageService storage;
 
@@ -106,8 +109,78 @@ void main() {
       await storage.saveMessage(msg);
       expect(storage.getMessages(peer).first.status, equals(MessageStatus.sending));
 
+      await storage.updateMessageStatus('status_test', peer, MessageStatus.sent);
+      expect(storage.getMessages(peer).first.status, equals(MessageStatus.sent));
+
       await storage.updateMessageStatus('status_test', peer, MessageStatus.delivered);
       expect(storage.getMessages(peer).first.status, equals(MessageStatus.delivered));
+    });
+
+    test('Chat history is encrypted at rest in SharedPreferences', () async {
+      const peer = 'peer_crypto';
+      const secretBody = 'Very sensitive medical or private data';
+
+      final msg = ChatMessage(
+        id: 'enc_1',
+        sender: 'Alice',
+        recipient: 'Bob',
+        body: secretBody,
+        sentAt: DateTime.now(),
+        isMine: true,
+        peerFingerprint: peer,
+      );
+
+      await storage.saveMessage(msg);
+
+      // Directly inspect the raw value in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final rawStored = prefs.getString('nearbychat.history.$peer');
+
+      expect(rawStored, isNotNull);
+      // Plaintext must NOT appear in the stored string
+      expect(rawStored!.contains(secretBody), isFalse);
+      expect(rawStored.contains('Alice'), isFalse);
+
+      // Stored format must be an encrypted envelope with nonce, ciphertext, and mac
+      final Map<String, dynamic> env = jsonDecode(rawStored);
+      expect(env.containsKey('n'), isTrue);
+      expect(env.containsKey('c'), isTrue);
+      expect(env.containsKey('m'), isTrue);
+    });
+
+    test('Transparent migration of legacy plaintext history', () async {
+      const peer = 'legacy_peer';
+      final now = DateTime.now();
+
+      // Simulate legacy unencrypted plaintext stored as raw JSON array
+      final legacyList = [
+        {
+          'id': 'leg_1',
+          'sender': 'LegacyUser',
+          'recipient': 'Me',
+          'body': 'Old unencrypted message',
+          'sentAt': now.toIso8601String(),
+          'isMine': false,
+          'peerFingerprint': peer,
+          'status': 'delivered',
+        }
+      ];
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('nearbychat.history.$peer', jsonEncode(legacyList));
+
+      // Re-create storage service to trigger preload & migration
+      final newStorage = await StorageService.create(prefs: prefs);
+
+      // Verify messages are decrypted and available in memory
+      final messages = newStorage.getMessages(peer);
+      expect(messages.length, equals(1));
+      expect(messages.first.body, equals('Old unencrypted message'));
+
+      // Verify that disk storage was migrated to encrypted format
+      final migratedRaw = prefs.getString('nearbychat.history.$peer')!;
+      expect(migratedRaw.contains('Old unencrypted message'), isFalse);
+      expect(migratedRaw.startsWith('{'), isTrue);
     });
   });
 }

@@ -22,6 +22,8 @@ class BleService {
 
   final Map<String, Peer> _discoveredPeers = {};
   final Set<String> _connectedDevices = {};
+  final Set<String> _resolvingDevices = {};
+  final Map<String, String> _lastKnownDeviceIdByPublicKey = {};
 
   String? _localUsername;
   String? _localPublicKeyBase64;
@@ -34,9 +36,9 @@ class BleService {
   Future<T> _enqueueOperation<T>(String deviceId, Future<T> Function() operation) {
     final previous = _deviceQueues[deviceId] ?? Future.value();
     final completer = Completer<void>();
-    
+
     _deviceQueues[deviceId] = completer.future;
-    
+
     return previous.then((_) async {
       try {
         return await operation();
@@ -59,6 +61,9 @@ class BleService {
   bool get isAdvertising => _isAdvertising;
   bool get isPeripheralSupported => _peripheralSupported;
   Map<String, Peer> get discoveredPeers => Map.unmodifiable(_discoveredPeers);
+
+  /// Gets the last known BLE deviceId for a peer's public key (useful for sending ACKs).
+  String? getLastKnownDeviceId(String publicKey) => _lastKnownDeviceIdByPublicKey[publicKey];
 
   /// Initializes BLE listeners and handlers.
   Future<void> init({
@@ -85,13 +90,15 @@ class BleService {
           Permission.location,
         ].request();
 
-        final btGranted = statuses[Permission.bluetoothScan]?.isGranted == true ||
-            statuses[Permission.bluetoothConnect]?.isGranted == true;
+        final btScanGranted = statuses[Permission.bluetoothScan]?.isGranted == true;
+        final btConnectGranted = statuses[Permission.bluetoothConnect]?.isGranted == true;
         final locGranted = statuses[Permission.location]?.isGranted == true ||
             statuses[Permission.location]?.isLimited == true;
 
-        // Android 12+ with neverForLocation requires BT permissions; legacy Android requires location.
-        return btGranted || locGranted;
+        // Android 12+ (API 31+) requires bluetoothScan & bluetoothConnect.
+        if (btScanGranted && btConnectGranted) return true;
+        // Legacy Android (<= 11) requires location permission for scanning.
+        return locGranted;
       } else if (isIOS) {
         final status = await Permission.bluetooth.request();
         return status.isGranted || status.isLimited;
@@ -121,7 +128,9 @@ class BleService {
         if (entry.value.deviceId == deviceId) {
           final updated = entry.value.copyWith(isConnected: isConnected);
           _discoveredPeers[entry.key] = updated;
-          _peerDiscoveredController.add(updated);
+          if (!_peerDiscoveredController.isClosed) {
+            _peerDiscoveredController.add(updated);
+          }
         }
       }
     };
@@ -142,7 +151,12 @@ class BleService {
             'publicKey': _localPublicKeyBase64 ?? '',
           });
           final bytes = Uint8List.fromList(utf8.encode(identityJson));
-          return PeripheralReadRequestResult(value: bytes);
+
+          // Honor GATT read offset to support long reads / MTU chunking
+          if (offset >= bytes.length) {
+            return PeripheralReadRequestResult(value: Uint8List(0));
+          }
+          return PeripheralReadRequestResult(value: bytes.sublist(offset));
         }
         return PeripheralReadRequestResult(value: Uint8List(0));
       });
@@ -156,11 +170,17 @@ class BleService {
         if (value != null && value.isNotEmpty &&
             (characteristicId.toLowerCase().contains('c0de0003') ||
              characteristicId == inboxCharacteristicUuid)) {
-          final fullBytes = _reassembler.processFrame(value);
+          final fullBytes = _reassembler.processFrame(value, senderId: deviceId);
           if (fullBytes != null) {
             try {
               final envelope = ChatEnvelope.fromBinary(fullBytes);
-              _envelopeReceivedController.add(envelope);
+              // Associate sender's public key with this BLE deviceId for ACK routing
+              if (deviceId.isNotEmpty && envelope.senderPublicKey.isNotEmpty) {
+                _lastKnownDeviceIdByPublicKey[envelope.senderPublicKey] = deviceId;
+              }
+              if (!_envelopeReceivedController.isClosed) {
+                _envelopeReceivedController.add(envelope);
+              }
             } catch (e) {
               debugPrint('[BLE Peripheral] Failed to parse received envelope: $e');
             }
@@ -216,12 +236,16 @@ class BleService {
       );
 
       _isAdvertising = true;
-      _advertisingStateController.add(true);
+      if (!_advertisingStateController.isClosed) {
+        _advertisingStateController.add(true);
+      }
       debugPrint('[BLE Peripheral] Advertising started as NC-$_localUsername');
     } catch (e) {
       debugPrint('[BLE Peripheral] Advertising failed: $e');
       _isAdvertising = false;
-      _advertisingStateController.add(false);
+      if (!_advertisingStateController.isClosed) {
+        _advertisingStateController.add(false);
+      }
       _peripheralSupported = false;
     }
   }
@@ -230,7 +254,9 @@ class BleService {
     try {
       await UniversalBlePeripheral.stopAdvertising();
       _isAdvertising = false;
-      _advertisingStateController.add(false);
+      if (!_advertisingStateController.isClosed) {
+        _advertisingStateController.add(false);
+      }
     } catch (e) {
       debugPrint('[BLE Peripheral] Stop advertising error: $e');
     }
@@ -253,12 +279,16 @@ class BleService {
       );
 
       _isScanning = true;
-      _scanningStateController.add(true);
+      if (!_scanningStateController.isClosed) {
+        _scanningStateController.add(true);
+      }
       debugPrint('[BLE Central] Scanning started');
     } catch (e) {
       debugPrint('[BLE Central] Start scan error: $e');
       _isScanning = false;
-      _scanningStateController.add(false);
+      if (!_scanningStateController.isClosed) {
+        _scanningStateController.add(false);
+      }
     }
   }
 
@@ -266,7 +296,9 @@ class BleService {
     try {
       await UniversalBle.stopScan();
       _isScanning = false;
-      _scanningStateController.add(false);
+      if (!_scanningStateController.isClosed) {
+        _scanningStateController.add(false);
+      }
       debugPrint('[BLE Central] Scanning stopped');
     } catch (e) {
       debugPrint('[BLE Central] Stop scan error: $e');
@@ -279,6 +311,9 @@ class BleService {
     final hasPrefix = name.startsWith(peerNamePrefix);
 
     if (!hasService && !hasPrefix) return;
+
+    // Guard against repeated redundant resolution attempts while scan result fires repeatedly
+    if (_resolvingDevices.contains(device.deviceId)) return;
 
     final displayName = hasPrefix ? name.substring(peerNamePrefix.length) : (name.isNotEmpty ? name : 'Nearby User');
 
@@ -293,13 +328,22 @@ class BleService {
         lastSeen: DateTime.now(),
       );
       _discoveredPeers[device.deviceId] = updated;
-      _peerDiscoveredController.add(updated);
+      if (!_peerDiscoveredController.isClosed) {
+        _peerDiscoveredController.add(updated);
+      }
     }
   }
 
   Future<void> _resolvePeerIdentity(String deviceId, String defaultName, int? rssi) {
+    if (_resolvingDevices.contains(deviceId)) return Future.value();
+    _resolvingDevices.add(deviceId);
+
     return _enqueueOperation(deviceId, () async {
       try {
+        if (_discoveredPeers.containsKey(deviceId) && _discoveredPeers[deviceId]?.publicKey.isNotEmpty == true) {
+          return;
+        }
+
         await UniversalBle.connect(deviceId, timeout: const Duration(seconds: 10));
         await UniversalBle.discoverServices(deviceId, timeout: const Duration(seconds: 10));
 
@@ -317,6 +361,7 @@ class BleService {
           final publicKey = data['publicKey'] as String? ?? '';
 
           if (publicKey.isNotEmpty) {
+            _lastKnownDeviceIdByPublicKey[publicKey] = deviceId;
             final peer = Peer(
               deviceId: deviceId,
               username: username,
@@ -326,13 +371,16 @@ class BleService {
               isConnected: true,
             );
             _discoveredPeers[deviceId] = peer;
-            _peerDiscoveredController.add(peer);
+            if (!_peerDiscoveredController.isClosed) {
+              _peerDiscoveredController.add(peer);
+            }
             debugPrint('[BLE Central] Successfully resolved peer identity: $username ($publicKey)');
           }
         }
       } catch (e) {
         debugPrint('[BLE Central] Resolve identity notice for $deviceId: $e');
       } finally {
+        _resolvingDevices.remove(deviceId);
         // Always disconnect after identity resolution to prevent BLE connection leak
         try {
           await UniversalBle.disconnect(deviceId);
@@ -390,10 +438,16 @@ class BleService {
     });
   }
 
-  void dispose() {
-    _peerDiscoveredController.close();
-    _envelopeReceivedController.close();
-    _scanningStateController.close();
-    _advertisingStateController.close();
+  Future<void> dispose() async {
+    try {
+      await stopScanning();
+    } catch (_) {}
+    try {
+      await stopAdvertising();
+    } catch (_) {}
+    if (!_peerDiscoveredController.isClosed) _peerDiscoveredController.close();
+    if (!_envelopeReceivedController.isClosed) _envelopeReceivedController.close();
+    if (!_scanningStateController.isClosed) _scanningStateController.close();
+    if (!_advertisingStateController.isClosed) _advertisingStateController.close();
   }
 }

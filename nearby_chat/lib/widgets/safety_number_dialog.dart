@@ -15,7 +15,8 @@ class SafetyNumberDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final safetyNumber = peer.safetyNumber ?? 'Deriving...';
+    final hasError = peer.safetyNumber == null;
+    final safetyNumber = peer.safetyNumber ?? 'Unavailable';
 
     return Dialog(
       backgroundColor: const Color(0xFF111827),
@@ -33,10 +34,14 @@ class SafetyNumberDialog extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                    color: (hasError ? const Color(0xFFEF4444) : const Color(0xFF3B82F6)).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.verified_user_outlined, color: Color(0xFF3B82F6), size: 26),
+                  child: Icon(
+                    hasError ? Icons.error_outline : Icons.verified_user_outlined,
+                    color: hasError ? const Color(0xFFEF4444) : const Color(0xFF3B82F6),
+                    size: 26,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -61,9 +66,15 @@ class SafetyNumberDialog extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Compare this cryptographic fingerprint in person to ensure your conversation is direct, tamper-proof, and free of man-in-the-middle interception.',
-              style: TextStyle(color: Color(0xFFD1D5DB), fontSize: 13, height: 1.45),
+            Text(
+              hasError
+                  ? 'Cryptographic safety number could not be established with this peer. Ensure their device identity is valid and in range.'
+                  : 'Compare this cryptographic fingerprint in person to ensure your conversation is direct, tamper-proof, and free of man-in-the-middle interception.',
+              style: TextStyle(
+                color: hasError ? const Color(0xFFFCA5A5) : const Color(0xFFD1D5DB),
+                fontSize: 13,
+                height: 1.45,
+              ),
             ),
             const SizedBox(height: 18),
             Container(
@@ -72,14 +83,19 @@ class SafetyNumberDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF0B0F19),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.4), width: 1.5),
+                border: Border.all(
+                  color: hasError
+                      ? const Color(0xFFEF4444).withValues(alpha: 0.5)
+                      : const Color(0xFF22C55E).withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
               ),
               child: Column(
                 children: [
-                  const Text(
-                    'SHARED SAFETY NUMBER',
+                  Text(
+                    hasError ? 'SESSION ERROR' : 'SHARED SAFETY NUMBER',
                     style: TextStyle(
-                      color: Color(0xFF9CA3AF),
+                      color: hasError ? const Color(0xFFEF4444) : const Color(0xFF9CA3AF),
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
@@ -89,12 +105,12 @@ class SafetyNumberDialog extends StatelessWidget {
                   SelectableText(
                     safetyNumber,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      color: Color(0xFF22C55E),
-                      fontSize: 22,
+                      color: hasError ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                      fontSize: hasError ? 16 : 22,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 2,
+                      letterSpacing: hasError ? 1 : 2,
                     ),
                   ),
                 ],
@@ -135,17 +151,28 @@ class SafetyNumberDialog extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: peer.isVerified ? const Color(0xFF374151) : const Color(0xFF10B981),
+                      backgroundColor: hasError
+                          ? const Color(0xFF374151)
+                          : (peer.isVerified ? const Color(0xFF374151) : const Color(0xFF10B981)),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    onPressed: () {
-                      onVerificationChanged(!peer.isVerified);
-                      Navigator.of(context).pop();
-                    },
-                    icon: Icon(peer.isVerified ? Icons.close : Icons.check, size: 18),
-                    label: Text(peer.isVerified ? 'Unverify' : 'Mark Verified'),
+                    onPressed: hasError
+                        ? null
+                        : () {
+                            onVerificationChanged(!peer.isVerified);
+                            Navigator.of(context).pop();
+                          },
+                    icon: Icon(
+                      hasError ? Icons.block : (peer.isVerified ? Icons.close : Icons.check),
+                      size: 18,
+                    ),
+                    label: Text(
+                      hasError
+                          ? 'Unavailable'
+                          : (peer.isVerified ? 'Unverify' : 'Mark Verified'),
+                    ),
                   ),
                 ),
               ],

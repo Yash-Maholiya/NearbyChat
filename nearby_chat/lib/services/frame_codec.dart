@@ -6,14 +6,24 @@ class FrameCodec {
   static int _hashCounter = 0;
 
   /// Slices serialized binary data into MTU-sized frames.
+  /// Handles empty data by generating a single zero-payload frame.
   static List<Uint8List> fragment(
     Uint8List data, {
     int? messageIdHash,
     int maxFrameSize = defaultMaxFrameSize,
   }) {
-    if (data.isEmpty) return [];
-
     final hash = messageIdHash ?? (_hashCounter = (_hashCounter + 1) & 0xFFFFFFFF);
+
+    if (data.isEmpty) {
+      final frame = Uint8List(headerSize);
+      final byteData = ByteData.sublistView(frame);
+      byteData.setUint32(0, hash);
+      byteData.setUint16(4, 0); // frameIndex
+      byteData.setUint16(6, 1); // totalFrames
+      byteData.setUint16(8, 0); // payloadLength
+      return [frame];
+    }
+
     final payloadChunkSize = maxFrameSize - headerSize;
     if (payloadChunkSize <= 0) {
       throw ArgumentError('maxFrameSize must be greater than headerSize ($headerSize)');
@@ -77,17 +87,27 @@ class _FrameBuffer {
   }
 }
 
-/// Thread-safe in-memory reassembler for incoming BLE packet chunks.
+/// Hardened in-memory reassembler for incoming BLE packet chunks.
+/// Binds buffers by (senderId, hash), limits buffer count and frames per message,
+/// and throttles stale pruning.
 class FrameReassembler {
+  static const int maxActiveBuffers = 100;
+  static const int maxFramesPerMessage = 500;
+
   final Duration timeout;
-  final Map<int, _FrameBuffer> _buffers = {};
+  final Map<String, _FrameBuffer> _buffers = {};
+  DateTime _lastPruned = DateTime.now();
 
   FrameReassembler({this.timeout = const Duration(seconds: 30)});
 
-  /// Processes an incoming raw frame. Returns fully assembled bytes if all frames
-  /// have been received, or `null` if more frames are still pending.
-  Uint8List? processFrame(Uint8List rawFrame) {
-    _pruneStale();
+  /// Processes an incoming raw frame bound to a specific sender device ID.
+  /// Returns fully assembled bytes if all frames have arrived, or null if pending.
+  Uint8List? processFrame(Uint8List rawFrame, {String senderId = 'default'}) {
+    final now = DateTime.now();
+    if (now.difference(_lastPruned).inSeconds >= 5) {
+      _pruneStale();
+      _lastPruned = now;
+    }
 
     if (rawFrame.length < FrameCodec.headerSize) {
       return null;
@@ -99,7 +119,7 @@ class FrameReassembler {
     final totalFrames = byteData.getUint16(6);
     final payloadLength = byteData.getUint16(8);
 
-    if (totalFrames == 0 || frameIndex >= totalFrames) {
+    if (totalFrames == 0 || totalFrames > maxFramesPerMessage || frameIndex >= totalFrames) {
       return null;
     }
 
@@ -112,10 +132,17 @@ class FrameReassembler {
       FrameCodec.headerSize + payloadLength,
     );
 
-    final buffer = _buffers.putIfAbsent(
-      hash,
-      () => _FrameBuffer(messageIdHash: hash, totalFrames: totalFrames),
-    );
+    final bufferKey = '$senderId:$hash';
+
+    if (!_buffers.containsKey(bufferKey)) {
+      if (_buffers.length >= maxActiveBuffers) {
+        // Evict oldest buffer
+        _buffers.remove(_buffers.keys.first);
+      }
+      _buffers[bufferKey] = _FrameBuffer(messageIdHash: hash, totalFrames: totalFrames);
+    }
+
+    final buffer = _buffers[bufferKey]!;
 
     if (buffer.totalFrames != totalFrames) {
       return null;
@@ -124,7 +151,7 @@ class FrameReassembler {
     buffer.chunks[frameIndex] = payload;
 
     if (buffer.isComplete) {
-      _buffers.remove(hash);
+      _buffers.remove(bufferKey);
       return buffer.assemble();
     }
 

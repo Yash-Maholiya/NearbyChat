@@ -80,6 +80,15 @@ class ChatController extends ChangeNotifier {
     _envelopeSub?.cancel();
 
     _peerSub = _ble.onPeerDiscovered.listen((peer) async {
+      // Key-name binding check: warn if the same name maps to a different key
+      for (final existing in _peers.values) {
+        if (existing.username.toLowerCase() == peer.username.toLowerCase() &&
+            existing.publicKey != peer.publicKey &&
+            !existing.deviceId.startsWith('unpaired-')) {
+          debugPrint('[ChatController] WARNING: Name collision or public key change for username "${peer.username}"');
+        }
+      }
+
       final safetyNumber = await _crypto.deriveSafetyNumber(peer.publicKey);
       final isVerified = _storage.isPeerVerified(peer.fingerprint);
 
@@ -88,8 +97,8 @@ class ChatController extends ChangeNotifier {
         isVerified: isVerified,
       );
 
-      // Clean up any placeholder peer (e.g. unknown-Alice) with matching public key
-      _peers.removeWhere((id, p) => id.startsWith('unknown-') && p.publicKey == peer.publicKey);
+      // Clean up any placeholder peer (e.g. unpaired-<fingerprint>) with matching public key
+      _peers.removeWhere((id, p) => id.startsWith('unpaired-') && p.publicKey == peer.publicKey);
 
       _peers[peer.deviceId] = enrichedPeer;
 
@@ -156,7 +165,7 @@ class ChatController extends ChangeNotifier {
     final plaintext = text.trim();
     final messageId = _uuid.v4();
 
-    // 1. Encrypt message payload
+    // 1. Encrypt message payload with Perfect Forward Secrecy
     final envelope = await _crypto.encryptMessage(
       plaintext: plaintext,
       senderUsername: _username!,
@@ -164,7 +173,7 @@ class ChatController extends ChangeNotifier {
       messageId: messageId,
     );
 
-    // 2. Create local message record
+    // 2. Create local message record with initial 'sending' status
     final localMessage = ChatMessage(
       id: messageId,
       sender: _username!,
@@ -187,7 +196,8 @@ class ChatController extends ChangeNotifier {
 
     // 4. Transmit via BLE
     final success = await _ble.sendEnvelope(currentPeer.deviceId, envelope);
-    final newStatus = success ? MessageStatus.delivered : MessageStatus.failed;
+    // Honest status: transition to 'sent' upon radio dispatch, or 'failed' if write errors out
+    final newStatus = success ? MessageStatus.sent : MessageStatus.failed;
 
     await _storage.updateMessageStatus(messageId, currentPeer.fingerprint, newStatus);
     final idx = history.indexWhere((m) => m.id == messageId);
@@ -200,6 +210,12 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> _handleIncomingEnvelope(ChatEnvelope envelope) async {
+    // 1. Branch on ACK packets before attempting decryption
+    if (envelope.isAck) {
+      await _handleIncomingAck(envelope);
+      return;
+    }
+
     try {
       // Validate recipient public key
       if (_crypto.isInitialized && envelope.recipientPublicKey != _crypto.publicKeyBase64) {
@@ -207,16 +223,29 @@ class ChatController extends ChangeNotifier {
         return;
       }
 
-      final decryptedText = await _crypto.decryptEnvelope(envelope);
+      final decrypted = await _crypto.decryptEnvelopeWithKey(envelope);
       final senderFingerprint = envelope.senderPublicKey.length > 12
           ? envelope.senderPublicKey.substring(0, 12)
           : envelope.senderPublicKey;
 
+      // Anti-impersonation: Resolve sender display name strictly by senderPublicKey in _peers
+      final knownPeer = _peers.values
+          .where((p) => p.publicKey == envelope.senderPublicKey)
+          .firstOrNull;
+
+      final String resolvedSenderName;
+      if (knownPeer != null && !knownPeer.deviceId.startsWith('unpaired-')) {
+        resolvedSenderName = knownPeer.username;
+      } else {
+        // Do NOT trust envelope.senderUsername from an unverified public key
+        resolvedSenderName = 'Unverified ($senderFingerprint)';
+      }
+
       final incomingMessage = ChatMessage(
         id: envelope.messageId,
-        sender: envelope.senderUsername,
+        sender: resolvedSenderName,
         recipient: _username ?? 'Me',
-        body: decryptedText,
+        body: decrypted.plaintext,
         sentAt: DateTime.fromMillisecondsSinceEpoch(envelope.timestamp),
         isMine: false,
         peerFingerprint: senderFingerprint,
@@ -232,28 +261,22 @@ class ChatController extends ChangeNotifier {
         history.add(incomingMessage);
       }
 
-      // If sender peer is in list, update lastSeen and isConnected
-      final existingKey = _peers.keys.firstWhere(
-        (key) => _peers[key]!.publicKey == envelope.senderPublicKey,
-        orElse: () => '',
-      );
-
-      if (existingKey.isNotEmpty) {
-        final existingPeer = _peers[existingKey]!;
-        final updatedPeer = existingPeer.copyWith(
+      // Update or create peer entry
+      if (knownPeer != null) {
+        final updatedPeer = knownPeer.copyWith(
           lastSeen: DateTime.now(),
           isConnected: true,
         );
-        _peers[existingKey] = updatedPeer;
-        if (_activePeer?.deviceId == existingPeer.deviceId || _activePeer?.publicKey == envelope.senderPublicKey) {
+        _peers[knownPeer.deviceId] = updatedPeer;
+        if (_activePeer?.deviceId == knownPeer.deviceId || _activePeer?.publicKey == envelope.senderPublicKey) {
           _activePeer = updatedPeer;
         }
       } else {
-        // Peer not yet discovered via scanning — create enriched placeholder
+        // Peer not yet discovered via scanning — create unverified placeholder keyed by fingerprint
         final safetyNumber = await _crypto.deriveSafetyNumber(envelope.senderPublicKey);
         final newPeer = Peer(
-          deviceId: 'unknown-${envelope.senderUsername}',
-          username: envelope.senderUsername,
+          deviceId: 'unpaired-$senderFingerprint',
+          username: resolvedSenderName,
           publicKey: envelope.senderPublicKey,
           lastSeen: DateTime.now(),
           safetyNumber: safetyNumber,
@@ -264,8 +287,62 @@ class ChatController extends ChangeNotifier {
       }
 
       notifyListeners();
+
+      // Plumb ACK routing: create and send authenticated delivery ACK
+      try {
+        final ackEnvelope = await _crypto.createAckEnvelope(
+          originalMessageId: envelope.messageId,
+          recipientPublicKeyBase64: envelope.senderPublicKey,
+          senderUsername: _username ?? 'Me',
+          messageKey: decrypted.messageKey,
+        );
+
+        final targetDeviceId = _ble.getLastKnownDeviceId(envelope.senderPublicKey) ??
+            (knownPeer != null && !knownPeer.deviceId.startsWith('unpaired-') ? knownPeer.deviceId : null);
+
+        if (targetDeviceId != null) {
+          _ble.sendEnvelope(targetDeviceId, ackEnvelope).catchError((e) {
+            debugPrint('[Controller] ACK transmission notice: $e');
+            return false;
+          });
+        }
+      } catch (e) {
+        debugPrint('[Controller] Failed to generate/send ACK: $e');
+      }
     } catch (e) {
       debugPrint('[Controller] Failed to decrypt incoming envelope: $e');
+    }
+  }
+
+  Future<void> _handleIncomingAck(ChatEnvelope ackEnvelope) async {
+    try {
+      final isValid = await _crypto.verifyAckEnvelope(ackEnvelope);
+      if (!isValid) {
+        debugPrint('[Controller] Received invalid or unauthenticated ACK');
+        return;
+      }
+
+      final originalId = ackEnvelope.originalMessageId;
+      if (originalId == null) return;
+
+      final senderFingerprint = ackEnvelope.senderPublicKey.length > 12
+          ? ackEnvelope.senderPublicKey.substring(0, 12)
+          : ackEnvelope.senderPublicKey;
+
+      // Only transition if message is currently in 'sent' state
+      final history = _conversationHistory[senderFingerprint];
+      if (history != null) {
+        final idx = history.indexWhere((m) => m.id == originalId);
+        if (idx >= 0 && history[idx].status == MessageStatus.sent) {
+          final updated = history[idx].copyWith(status: MessageStatus.delivered);
+          history[idx] = updated;
+          await _storage.updateMessageStatus(originalId, senderFingerprint, MessageStatus.delivered);
+          notifyListeners();
+          debugPrint('[Controller] Message $originalId confirmed delivered via authenticated ACK');
+        }
+      }
+    } catch (e) {
+      debugPrint('[Controller] Error handling incoming ACK: $e');
     }
   }
 
@@ -283,7 +360,6 @@ class ChatController extends ChangeNotifier {
 
   @override
   void dispose() {
-    // Fire and forget, catching any errors since dispose is synchronous
     stopDiscovery().catchError((e) {
       debugPrint('[ChatController] Error stopping discovery during dispose: $e');
     });

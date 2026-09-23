@@ -168,19 +168,25 @@ class _ConversationScreenState extends State<ConversationScreen> {
             child: Row(
               children: [
                 Icon(
-                  currentPeer.isVerified ? Icons.lock : Icons.lock_clock,
-                  color: currentPeer.isVerified ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  currentPeer.safetyNumber == null
+                      ? Icons.warning_amber_rounded
+                      : (currentPeer.isVerified ? Icons.lock : Icons.lock_clock),
+                  color: currentPeer.safetyNumber == null
+                      ? const Color(0xFFEF4444)
+                      : (currentPeer.isVerified ? const Color(0xFF10B981) : const Color(0xFFF59E0B)),
                   size: 16,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    currentPeer.isVerified
-                        ? 'Verified E2EE Session ($safetyNumber)'
-                        : 'Safety No: $safetyNumber',
-                    style: const TextStyle(
+                    currentPeer.safetyNumber == null
+                        ? 'Safety Number: Unavailable'
+                        : (currentPeer.isVerified
+                            ? 'Verified E2EE Session ($safetyNumber)'
+                            : 'Safety No: $safetyNumber'),
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      color: Color(0xFFCBD5E1),
+                      color: currentPeer.safetyNumber == null ? const Color(0xFFFCA5A5) : const Color(0xFFCBD5E1),
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -196,7 +202,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   child: Text(
                     currentPeer.isVerified ? 'Details' : 'Verify',
                     style: TextStyle(
-                      color: currentPeer.isVerified ? const Color(0xFF60A5FA) : const Color(0xFFF59E0B),
+                      color: currentPeer.safetyNumber == null
+                          ? const Color(0xFFEF4444)
+                          : (currentPeer.isVerified ? const Color(0xFF60A5FA) : const Color(0xFFF59E0B)),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),

@@ -137,62 +137,59 @@ Standard BLE ATT MTU guarantees as low as **23 bytes** (3 bytes ATT header + 20 
   The receiver’s `FrameReassembler` buffers frames indexed by `MessageID`. Once all `TotalFrames` are collected, the payload is concatenated and passed to the crypto decoding pipeline.
 
 ### 4.3. End-to-End Cryptographic Protocol
-NearbyChat enforces zero-server key exchange:
-1. **Key Generation (Once on Install):**
-   - Device generates an **X25519** keypair via the Dart `cryptography` package.
+NearbyChat enforces zero-server key exchange with Perfect Forward Secrecy (PFS):
+1. **Static Identity Key Generation (Once on Install):**
+   - Device generates an **X25519** static identity keypair via the Dart `cryptography` package.
    - Private key is stored securely in **Android Keystore** or **iOS Keychain** via `flutter_secure_storage`.
 2. **Public Key Exchange:**
    - Exchanged directly during peer discovery via GATT Identity Characteristic read.
-3. **Shared Secret Derivation:**
-   $$\text{sharedSecret} = \text{X25519}(\text{privKey}_{\text{local}}, \text{pubKey}_{\text{remote}})$$
-   Because ECDH is symmetric: $\text{X25519}(A_{\text{priv}}, B_{\text{pub}}) \equiv \text{X25519}(B_{\text{priv}}, A_{\text{pub}})$.
-4. **Key Derivation (KDF):**
-   $$\text{messageKey} = \text{SHA-256}(\text{"nearbychat-v1"} \parallel \text{sharedSecret})$$
-5. **Authenticated Encryption (AES-GCM-256):**
-   - Plaintext message is encrypted with `messageKey` using **AES-GCM**.
-   - Generates 12-byte random Initialization Vector (IV) / Nonce.
-   - Generates 128-bit (16-byte) Authentication Tag.
-   - Additional Authenticated Data (AAD) binds sender ID and timestamp to the ciphertext, preventing tamper attacks.
-6. **Safety Number Verification (Out-of-Band MITM Defense):**
-   $$\text{safetyNumber} = \text{Truncate}_{6\text{-bytes}}(\text{SHA-256}(\text{sharedSecret})) \rightarrow \text{"a3-f7-2c-10-b8-44"}$$
-   Both users compare this 6-byte hex sequence visually or verbally in person to ensure no third party performed key interception.
+3. **Perfect Forward Secrecy (PFS) Message Encryption:**
+   - For every outgoing message, the sender generates a one-time ephemeral keypair $(e_{\text{priv}}, e_{\text{pub}})$.
+   - Ephemeral shared secret:
+     $$\text{pfsSecret} = \text{X25519}(e_{\text{priv}}, \text{staticPub}_{\text{recipient}})$$
+   - Message key derivation via **HKDF-SHA256**:
+     $$\text{messageKey} = \text{HKDF}(\text{IKM}=\text{pfsSecret}, \text{salt}=\text{"nearbychat-pfs-v1"}, \text{info}=\text{messageId})$$
+   - $e_{\text{priv}}$ is wiped from memory immediately after encryption.
+4. **Authenticated Encryption (AES-GCM-256) & AAD:**
+   - Plaintext message is encrypted with `messageKey` using **AES-GCM-256** with a 12-byte unique random nonce.
+   - Additional Authenticated Data (AAD) cryptographically binds:
+     $$\text{AAD} = \text{version} \parallel \text{messageId} \parallel \text{senderUsername} \parallel \text{senderPub} \parallel \text{recipientPub} \parallel \text{ephemeralPub} \parallel \text{timestamp}$$
+   - This ensures intermediate relays or transport layers cannot alter message headers or usernames in transit without failing MAC authentication.
+5. **Anti-Spoofing & Sender Identity Resolution:**
+   - Display names are resolved strictly from local peer storage by `senderPublicKey`.
+   - Incoming messages from unknown public keys are labeled as `Unverified (<fingerprint>)`, preventing arbitrary username impersonation.
+6. **Authenticated Delivery Receipts (HMAC-SHA256 ACKs):**
+   - Recipient computes $\text{HMAC-SHA256}(\text{messageKey}, \text{"ack:"} \parallel \text{messageId})$ and transmits an ACK envelope.
+   - Sender verifies the HMAC against the retained message key before transitioning status from `sent` to `delivered`.
+   - ACKs are never ACKed (preventing loops) and only apply to messages in the `sent` state.
+7. **Mutual Safety Number Verification (Out-of-Band MITM Defense):**
+   - Derived exclusively from the static-static identity secret and lexicographically sorted raw public keys:
+     $$\text{staticSecret} = \text{X25519}(\text{staticPriv}_{\text{local}}, \text{staticPub}_{\text{remote}})$$
+     $$\text{sortedKeys} = \min(pk_{\text{local}}, pk_{\text{remote}}) \parallel \max(pk_{\text{local}}, pk_{\text{remote}})$$
+     $$\text{safetyNumber} = \text{Truncate}_{6\text{-bytes}}(\text{HKDF}(\text{IKM}=\text{staticSecret}, \text{salt}=\text{"nearbychat-safety-v1"}, \text{info}=\text{sortedKeys}))$$
+   - Both users compare this 6-byte hex sequence visually in person. If cryptographic derivation fails, the session displays an explicit error state and disables verification.
 
 ### 4.4. Persistent Storage Strategy
 - **Identity & Secrets (`flutter_secure_storage`):**
   - `nearbychat.identity.private_key` (Base64)
   - `nearbychat.identity.public_key` (Base64)
-  - `nearbychat.identity.username`
-- **Chat History (`shared_preferences`):**
-  - Key: `nearbychat.history.<peer_public_key_fingerprint>`
-  - Encoded as JSON array of `ChatMessage` objects.
-  - Rolling retention cap: **500 messages** per conversation window to maintain constant memory footprint.
+  - `nearbychat.profile.username`
+  - `nearbychat.storage.db_key` (256-bit AES master database key)
+- **Chat History at Rest (`shared_preferences`):**
+  - Decrypted messages are **never** stored in plaintext on disk.
+  - History is encrypted with **AES-GCM-256** using the local database key with a unique 12-byte nonce per write.
+  - Legacy plaintext histories are automatically and transparently migrated to encrypted envelopes on app startup.
+  - In-memory decrypted cache enforces a rolling retention cap of **500 messages** per peer.
 
 ---
 
-## 5. Multi-Hop Mesh Network Extension (`project_documents`)
+## 5. Multi-Hop Mesh Network Scope & Architecture
 
-The second track of the project specifies a **multi-hop store-and-forward mesh network**:
-
-```
-[Node A: Alice] ──(BLE/WiFi)──► [Node B: Relay 1] ──(BLE/WiFi)──► [Node C: Relay 2] ──(BLE/WiFi)──► [Node D: Bob]
-  (Sender)                        (Untrusted)                       (Untrusted)                      (Recipient)
-Plaintext Msg                   Forward Only                      Forward Only                   Decrypts Msg
-Enters Pipeline                 (Sees Ciphertext)                 (Sees Ciphertext)              Sends Ack (D->C->B->A)
-```
-
-### 5.1. The Untrusted Relay Principle
-Intermediate relays provide transit bandwidth but possess **zero cryptographic ability** to read or manipulate the payload:
-- **Routing Header (Plaintext to relays):** Version, Packet Type, Sender ID, Destination ID, Message ID, Sequence #, Timestamp, Expiry, TTL, Hop Count.
-- **Sealed Payload:** Encrypted exclusively for Destination D’s public key.
-- **Outer Signature:** Ed25519 signature by Sender A covering the header and ciphertext. Any byte modification by a relay invalidates the signature at the destination or next hop.
-
-### 5.2. Routing & Anti-Looping Controls
-- **Time-to-Live (TTL):** Decremented at each hop; packet dropped if $\text{TTL} \le 0$.
-- **Hop Count:** Incremented at each hop to calculate path length and latency metrics.
-- **Bounded Replay Cache:** Every node caches `(SenderID, MessageID)` tuples with timestamps to drop duplicate flood packets immediately.
-- **Trust Scoring Heuristic:** Nodes maintain a local reliability score for neighboring relays based on verified delivery acknowledgments ($\text{PDR}$), round-trip delay, and observed dropped packets.
-
----
+NearbyChat bridges two architectural dimensions:
+1. **Production Mobile Client (`nearby_chat`):**  
+   Implements a hardened, zero-infrastructure **1-hop Point-to-Point BLE GATT transport** with dual-role Central/Peripheral discovery, PFS encryption, and HMAC ACKs. Multi-hop mesh relay is deferred to Phase 5 / Future Work to ensure production stability.
+2. **Academic Mesh Emulation & Research (`project_documents`, `mesh_simulation`):**  
+   Academic simulation framework modeling multi-hop store-and-forward mesh routing, TTL, packet dropper analysis, and trust scoring heuristics in Mininet-WiFi / virtual network namespaces.
 
 ## 6. Comparative Literature Matrix
 

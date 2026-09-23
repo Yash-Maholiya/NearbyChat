@@ -79,6 +79,8 @@ class ChatBubble extends StatelessWidget {
           height: 10,
           child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF9CA3AF)),
         );
+      case MessageStatus.sent:
+        return const Icon(Icons.done, size: 14, color: Color(0xFF9CA3AF));
       case MessageStatus.delivered:
         return const Icon(Icons.done_all, size: 14, color: Color(0xFF38BDF8));
       case MessageStatus.failed:

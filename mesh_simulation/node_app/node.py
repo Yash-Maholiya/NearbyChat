@@ -106,6 +106,13 @@ class MeshNode:
             self.security_events.append(event)
         self.logger.warning(f"Security event: {event_type} for packet {packet.message_id} ({detail})")
 
+    def _record_relay_tamper(self, sender_addr: tuple) -> None:
+        for n in self.neighbors.get_active().values():
+            if (n.address, n.port) == sender_addr:
+                self.trust_scores.record_tamper(n.node_id)
+                self.logger.warning(f"Recorded tamper penalty for neighbor {n.node_id} at {sender_addr}")
+                break
+
     def send_hello(self, target_host: str, target_port: int) -> None:
         """Sends signed HELLO discovery packet to a peer."""
         payload_data = json.dumps({
@@ -201,9 +208,11 @@ class MeshNode:
             sig_bytes = base64.b64decode(packet.signature)
             if not NodeCrypto.verify(packet.sender_vk, packet.canonical_bytes(), sig_bytes):
                 self._log_security_event("INVALID_SIGNATURE", packet, "Tampered header or payload")
+                self._record_relay_tamper(sender_addr)
                 return
         except Exception as e:
             self._log_security_event("INVALID_SIGNATURE", packet, f"Malformed signature: {e}")
+            self._record_relay_tamper(sender_addr)
             return
 
         # 3. Trusted enrollment check (if enforced)

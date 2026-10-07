@@ -39,9 +39,14 @@ class BleService {
   bool _isScanning = false;
   bool _isAdvertising = false;
   bool _peripheralSupported = true;
+  bool _isDisposed = false;
 
   /// Serializes BLE operations per device to prevent overlapping connect/disconnect race conditions.
   Future<T> _enqueueOperation<T>(String deviceId, Future<T> Function() operation) {
+    if (_isDisposed) {
+      return Future.error(StateError('BleService is disposed'));
+    }
+
     final previous = _deviceQueues[deviceId] ?? Future.value();
     final completer = Completer<void>();
 
@@ -49,6 +54,9 @@ class BleService {
 
     return previous.then((_) async {
       try {
+        if (_isDisposed) {
+          throw StateError('BleService was disposed while operation was queued');
+        }
         return await operation();
       } finally {
         completer.complete();
@@ -248,7 +256,13 @@ class BleService {
         await UniversalBlePeripheral.clearServices();
         await UniversalBlePeripheral.addService(service);
       } catch (e) {
-        debugPrint('[BLE Peripheral] AddService notice: $e');
+        debugPrint('[BLE Peripheral] AddService failed: $e');
+        _isAdvertising = false;
+        if (!_advertisingStateController.isClosed) {
+          _advertisingStateController.add(false);
+        }
+        _peripheralSupported = false;
+        return;
       }
 
       await UniversalBlePeripheral.startAdvertising(
@@ -421,8 +435,8 @@ class BleService {
         final isConnected = _connectedDevices.contains(deviceId);
         if (!isConnected) {
           await UniversalBle.connect(deviceId, timeout: const Duration(seconds: 10));
-          await UniversalBle.discoverServices(deviceId, timeout: const Duration(seconds: 10));
           didConnect = true;
+          await UniversalBle.discoverServices(deviceId, timeout: const Duration(seconds: 10));
         }
 
         final binaryData = envelope.toBinary();
@@ -460,6 +474,8 @@ class BleService {
   }
 
   Future<void> dispose() async {
+    _isDisposed = true;
+    _deviceQueues.clear();
     try {
       await stopScanning();
     } catch (_) {}

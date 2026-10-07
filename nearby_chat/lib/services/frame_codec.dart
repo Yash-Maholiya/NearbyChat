@@ -145,6 +145,7 @@ class FrameReassembler {
     final buffer = _buffers[bufferKey]!;
 
     if (buffer.totalFrames != totalFrames) {
+      _buffers.remove(bufferKey);
       return null;
     }
 

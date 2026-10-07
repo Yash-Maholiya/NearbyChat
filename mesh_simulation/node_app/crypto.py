@@ -3,6 +3,7 @@ Cryptographic module for peer identity, digital signatures, and authenticated en
 """
 
 import base64
+import binascii
 import nacl.encoding
 import nacl.hash
 import nacl.public
@@ -53,7 +54,7 @@ class NodeCrypto:
             verify_key = nacl.signing.VerifyKey(vk_bytes)
             verify_key.verify(message_bytes, signature_bytes)
             return True
-        except (nacl.exceptions.BadSignatureError, Exception):
+        except (nacl.exceptions.BadSignatureError, nacl.exceptions.CryptoError, binascii.Error, ValueError):
             return False
 
     def encrypt_for_peer(self, peer_public_key_b64: str, plaintext: str) -> str:

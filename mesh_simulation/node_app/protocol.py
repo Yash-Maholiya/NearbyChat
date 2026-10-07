@@ -61,7 +61,7 @@ class Packet:
         }
         return json.dumps(canonical_dict, sort_keys=True, separators=(',', ':')).encode('utf-8')
 
-    def is_expired(self, current_time: Optional[float] = None, grace_period: float = 86400.0) -> bool:
+    def is_expired(self, current_time: Optional[float] = None, grace_period: float = 60.0) -> bool:
         now = current_time if current_time is not None else time.time()
         # Add a grace period to account for clock skew in decentralized mesh networks
         return now > (self.expiry + grace_period)

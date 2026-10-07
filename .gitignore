@@ -1,6 +1,23 @@
-﻿.tools/
+# Build artifacts & tools
+.tools/
 .idea/
+.vscode/
 build/
 .dart_tool/
 *.iml
+.kilo/
+.pytest_cache/
 
+# Python compiled bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution archives & staging folders
+*.zip
+NearbyChat_Package/
+
+# Android machine-specific
+nearby_chat/android/local.properties
+nearby_chat/android/.gradle/
+nearby_chat/android/.kotlin/

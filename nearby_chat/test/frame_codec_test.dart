@@ -105,5 +105,30 @@ void main() {
 
       expect(result, isNull);
     });
+
+    test('Total frames mismatch evicts buffer and discards corrupted sequence', () {
+      final data = Uint8List.fromList(List.generate(50, (i) => i));
+      final frames = FrameCodec.fragment(data, maxFrameSize: 20, messageIdHash: 42);
+
+      final reassembler = FrameReassembler();
+      // Send first frame
+      reassembler.processFrame(frames[0], senderId: 'dev1');
+
+      // Craft an inconsistent frame with same hash but totalFrames = 10
+      final badFrame = Uint8List.fromList(frames[1]);
+      final byteData = ByteData.sublistView(badFrame);
+      byteData.setUint16(6, 10); // totalFrames = 10
+
+      final mismatchResult = reassembler.processFrame(badFrame, senderId: 'dev1');
+      expect(mismatchResult, isNull);
+
+      // Subsequent fresh sequence with same hash should start fresh and reassemble
+      Uint8List? assembled;
+      for (final frame in frames) {
+        final res = reassembler.processFrame(frame, senderId: 'dev1');
+        if (res != null) assembled = res;
+      }
+      expect(assembled, equals(data));
+    });
   });
 }

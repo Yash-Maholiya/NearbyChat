@@ -78,3 +78,4 @@ def test_tampered_packet_dropped_by_relay(line_network):
     assert len(node_d.inbox) == 0
     events = [e for e in node_b.security_events if e["type"] == "INVALID_SIGNATURE"]
     assert len(events) >= 1
+    assert node_b.trust_scores._stats[node_a.node_id]["tampered"] >= 1

@@ -8,6 +8,10 @@ class Peer {
   final bool isVerified;
   final bool isConnected;
   final bool hasNameCollision;
+  /// Reached over a connection the peer opened to us (it has no GATT server of its own).
+  final bool isReverseLink;
+  /// 0 = direct BLE neighbour, n = learned from a signed announce that crossed n devices.
+  final int hops;
 
   const Peer({
     required this.deviceId,
@@ -19,13 +23,15 @@ class Peer {
     this.isVerified = false,
     this.isConnected = false,
     this.hasNameCollision = false,
+    this.isReverseLink = false,
+    this.hops = 0,
   });
 
-  /// Short cryptographic identifier derived from the public key.
-  String get fingerprint {
-    if (publicKey.length <= 12) return publicKey;
-    return publicKey.substring(0, 12);
-  }
+  /// Known only from relayed announces, no direct BLE link right now.
+  bool get isMeshOnly => deviceId.startsWith('mesh-');
+
+  /// First 12 base64 chars of the X25519 key; used as the storage key for this peer.
+  String get fingerprint => publicKey.length > 12 ? publicKey.substring(0, 12) : publicKey;
 
   Peer copyWith({
     String? deviceId,
@@ -39,6 +45,8 @@ class Peer {
     bool? isVerified,
     bool? isConnected,
     bool? hasNameCollision,
+    bool? isReverseLink,
+    int? hops,
   }) {
     return Peer(
       deviceId: deviceId ?? this.deviceId,
@@ -50,43 +58,15 @@ class Peer {
       isVerified: isVerified ?? this.isVerified,
       isConnected: isConnected ?? this.isConnected,
       hasNameCollision: hasNameCollision ?? this.hasNameCollision,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'deviceId': deviceId,
-      'username': username,
-      'publicKey': publicKey,
-      'rssi': rssi,
-      'lastSeen': lastSeen.toIso8601String(),
-      'safetyNumber': safetyNumber,
-      'isVerified': isVerified,
-      'isConnected': isConnected,
-      'hasNameCollision': hasNameCollision,
-    };
-  }
-
-  factory Peer.fromJson(Map<String, dynamic> json) {
-    return Peer(
-      deviceId: json['deviceId'] as String,
-      username: json['username'] as String,
-      publicKey: json['publicKey'] as String,
-      rssi: json['rssi'] as int?,
-      lastSeen: DateTime.parse(json['lastSeen'] as String),
-      safetyNumber: json['safetyNumber'] as String?,
-      isVerified: json['isVerified'] as bool? ?? false,
-      isConnected: json['isConnected'] as bool? ?? false,
-      hasNameCollision: json['hasNameCollision'] as bool? ?? false,
+      isReverseLink: isReverseLink ?? this.isReverseLink,
+      hops: hops ?? this.hops,
     );
   }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is Peer &&
-          runtimeType == other.runtimeType &&
-          publicKey == other.publicKey;
+      other is Peer && publicKey == other.publicKey;
 
   @override
   int get hashCode => publicKey.hashCode;

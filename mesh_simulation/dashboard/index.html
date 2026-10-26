@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesh Dashboard</title>
+<style>
+  :root {
+    --bg: #fcfcfb; --panel: #ffffff; --ink: #0b0b0b; --muted: #52514e; --line: #e4e3df;
+    --accent: #2a78d6; --warn: #eb6834; --good: #0ca30c; --bad: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1a1a19; --panel: #232322; --ink: #f0efec; --muted: #c3c2b7; --line: #3a3a38;
+            --accent: #3987e5; --warn: #d95926; --good: #2fbf2f; --bad: #e66767; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header span { color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  svg { width: 100%; height: auto; display: block; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  select, input, button { font: inherit; padding: 6px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  input[type=text] { flex: 1; min-width: 140px; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+  .events { max-height: 260px; overflow: auto; font-family: ui-monospace, monospace; font-size: 12px; }
+  .ok { color: var(--good); } .fail { color: var(--bad); } .pending { color: var(--muted); }
+  .tag { display: inline-block; padding: 0 6px; border-radius: 4px; border: 1px solid var(--line); font-size: 12px; }
+  .scroll { overflow-x: auto; }
+  .stack { display: grid; gap: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Secure mesh dashboard</h1>
+  <span id="mode"></span>
+  <span>Topology: A-B-D (2 hops) and A-C-E-D (3 hops). Click a link to cut or restore it.</span>
+</header>
+<main>
+  <div class="stack">
+    <section>
+      <h2>Topology</h2>
+      <svg id="topo" viewBox="0 0 520 320" role="img" aria-label="Mesh topology"></svg>
+    </section>
+    <section>
+      <h2>Send a message</h2>
+      <div class="row">
+        <select id="src"></select> to <select id="dst"></select>
+        <input id="text" type="text" value="hello over the mesh">
+        <button class="primary" id="sendBtn">Send</button>
+      </div>
+      <h2 style="margin-top:14px">Experiments and attacks</h2>
+      <div class="row">
+        <label>Dropper relay <select id="dropNode"></select></label>
+        <select id="dropRatio"><option value="0">0%</option><option value="0.6">60%</option><option value="1">100%</option></select>
+        <button id="dropBtn">Apply</button>
+      </div>
+      <div class="row">
+        <button data-attack="tamper">Tampered packet (T5)</button>
+        <button data-attack="replay">Replay captured packet (T6)</button>
+        <button data-attack="intruder">Unknown node HELLO (T7)</button>
+      </div>
+    </section>
+    <section>
+      <h2>NodeA outbox</h2>
+      <div class="scroll"><table id="outbox"></table></div>
+    </section>
+  </div>
+  <div class="stack">
+    <section>
+      <h2>Nodes</h2>
+      <div class="scroll"><table id="nodes"></table></div>
+    </section>
+    <section>
+      <h2>Relay trust scores seen by NodeA</h2>
+      <div class="scroll"><table id="trust"></table></div>
+    </section>
+    <section>
+      <h2>Security events (all nodes, newest first)</h2>
+      <div class="events" id="events"></div>
+    </section>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let state = null;
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  return r.json();
+}
+
+function fillSelect(sel, names, keep) {
+  if (sel.options.length) return;
+  names.forEach((n) => sel.add(new Option(n, n)));
+  if (keep) sel.value = keep;
+}
+
+function drawTopo() {
+  const svg = $("topo");
+  const pos = Object.fromEntries(state.nodes.map((n) => [n.name, [n.x, n.y]]));
+  let html = "";
+  state.links.forEach((l) => {
+    const [x1, y1] = pos[l.a], [x2, y2] = pos[l.b];
+    html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${l.up ? css("--muted") : css("--bad")}"
+      stroke-width="${l.up ? 2 : 2}" stroke-dasharray="${l.up ? "" : "6 5"}"/>`;
+    html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="transparent" stroke-width="18"
+      style="cursor:pointer" data-a="${l.a}" data-b="${l.b}" data-up="${l.up}"><title>${l.a} - ${l.b}: click to ${l.up ? "cut" : "restore"}</title></line>`;
+  });
+  state.nodes.forEach((n) => {
+    const fill = n.drop_ratio > 0 ? css("--warn") : css("--accent");
+    html += `<circle cx="${n.x}" cy="${n.y}" r="24" fill="${fill}" stroke="${css("--panel")}" stroke-width="2"/>
+      <text x="${n.x}" y="${n.y + 4}" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">${n.name.slice(4)}</text>
+      <text x="${n.x}" y="${n.y + 40}" text-anchor="middle" font-size="11" fill="${css("--muted")}">${n.node_id.slice(0, 6)}${n.drop_ratio > 0 ? " drops " + Math.round(n.drop_ratio * 100) + "%" : ""}</text>`;
+  });
+  svg.innerHTML = html;
+  svg.querySelectorAll("line[data-a]").forEach((el) => el.onclick = async () => {
+    await api("/api/link", { a: el.dataset.a, b: el.dataset.b, action: el.dataset.up === "true" ? "cut" : "restore" });
+    refresh();
+  });
+}
+
+function render() {
+  const names = state.nodes.map((n) => n.name);
+  const idName = (id) => state.id_to_name[id] || (id ? id.slice(0, 8) : "-");
+  fillSelect($("src"), names, "NodeA"); fillSelect($("dst"), names, "NodeD"); fillSelect($("dropNode"), names, "NodeB");
+  $("mode").textContent = `routing: ${state.routing}`;
+  drawTopo();
+
+  $("nodes").innerHTML = "<tr><th>node</th><th>neighbours</th><th>inbox</th><th>sent / fwd / dup</th></tr>" +
+    state.nodes.map((n) => `<tr><td>${n.name}</td><td>${n.neighbors.map((x) => x.name.slice(4)).join(", ") || "-"}</td>
+      <td>${n.inbox.length ? n.inbox.slice(-2).map((m) => `${idName(m.sender).slice(4)}: ${m.body.slice(0, 24)} (${m.hops + 1} hop)`).join("<br>") : "-"}</td>
+      <td>${n.stats.sent_packets} / ${n.stats.forwarded} / ${n.stats.duplicates}</td></tr>`).join("");
+
+  const a = state.nodes.find((n) => n.name === "NodeA");
+  const trustRows = Object.entries(a.trust).map(([id, t]) =>
+    `<tr><td>${idName(id)}</td><td>${t.score.toFixed(2)}</td><td>${t.acknowledged}</td><td>${t.dropped}</td><td>${t.tampered}</td></tr>`).join("");
+  $("trust").innerHTML = "<tr><th>relay</th><th>score</th><th>acked</th><th>dropped</th><th>tampered</th></tr>" + (trustRows || "<tr><td colspan=5>no data yet</td></tr>");
+
+  $("outbox").innerHTML = "<tr><th>to</th><th>status</th><th>attempts</th><th>latency</th></tr>" +
+    (a.outbox.slice().reverse().map((m) => `<tr><td>${idName(m.dest)}</td><td class="${m.status === "delivered" ? "ok" : m.status === "failed" ? "fail" : "pending"}">${m.status}</td>
+      <td>${m.attempts}</td><td>${m.latency_ms != null ? m.latency_ms + " ms" : "-"}</td></tr>`).join("") || "<tr><td colspan=4>nothing sent yet</td></tr>");
+
+  const ev = state.nodes.flatMap((n) => n.events.map((e) => ({ ...e, at: n.name })))
+    .sort((x, y) => y.time - x.time).slice(0, 60);
+  $("events").innerHTML = ev.map((e) => `<div>${new Date(e.time * 1000).toLocaleTimeString()} <span class="tag">${e.at}</span>
+    ${e.type} from ${idName(e.sender)} pkt ${e.packet}</div>`).join("") || "<div>no events yet</div>";
+}
+
+async function refresh() {
+  try { state = await api("/api/state"); render(); } catch (e) { /* server stopped */ }
+}
+
+$("sendBtn").onclick = async () => { await api("/api/send", { src: $("src").value, dst: $("dst").value, text: $("text").value }); setTimeout(refresh, 300); };
+$("dropBtn").onclick = async () => { await api("/api/dropper", { node: $("dropNode").value, ratio: $("dropRatio").value }); refresh(); };
+document.querySelectorAll("[data-attack]").forEach((b) => b.onclick = async () => { await api("/api/attack", { kind: b.dataset.attack }); setTimeout(refresh, 600); });
+refresh();
+setInterval(refresh, 1000);
+</script>
+</body>
+</html>

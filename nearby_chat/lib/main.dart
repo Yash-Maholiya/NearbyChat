@@ -10,59 +10,86 @@ import 'services/storage_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Enforce system UI overlay style for dark theme
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF0B0F19),
-      systemNavigationBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
 
-  final storageService = await StorageService.create();
-  final cryptoService = CryptoService();
-  final bleService = BleService();
-
-  final chatController = ChatController(
-    crypto: cryptoService,
-    storage: storageService,
-    ble: bleService,
+  final controller = ChatController(
+    crypto: CryptoService(),
+    storage: await StorageService.create(),
+    ble: BleService(),
   );
-
-  await chatController.init();
-
-  runApp(NearbyChatApp(controller: chatController));
+  await controller.init();
+  runApp(NearbyChatApp(controller: controller));
 }
 
-class NearbyChatApp extends StatelessWidget {
+class NearbyChatApp extends StatefulWidget {
   final ChatController controller;
 
   const NearbyChatApp({super.key, required this.controller});
 
   @override
+  State<NearbyChatApp> createState() => _NearbyChatAppState();
+}
+
+class _NearbyChatAppState extends State<NearbyChatApp> {
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
+  late int _alertsShown = widget.controller.securityAlertCount;
+
+  ChatController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller.addListener(_onChange);
+  }
+
+  @override
+  void dispose() {
+    controller.removeListener(_onChange);
+    super.dispose();
+  }
+
+  // Security events (a tampered message, for now) get a red banner on whatever screen is open.
+  void _onChange() {
+    if (controller.securityAlertCount == _alertsShown) return;
+    _alertsShown = controller.securityAlertCount;
+    _messenger.currentState?.showSnackBar(SnackBar(
+      backgroundColor: Colors.red.shade700,
+      duration: const Duration(seconds: 8),
+      content: Row(children: [
+        const Icon(Icons.gpp_bad, color: Colors.white),
+        const SizedBox(width: 12),
+        Expanded(child: Text(controller.securityAlert ?? '', style: const TextStyle(color: Colors.white))),
+      ]),
+    ));
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'NearbyChat',
+      scaffoldMessengerKey: _messenger,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0B0F19),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF3B82F6),
-          secondary: Color(0xFF10B981),
-          surface: Color(0xFF111827),
-          error: Color(0xFFEF4444),
-          onPrimary: Colors.white,
-          onSecondary: Colors.white,
-          onSurface: Color(0xFFF9FAFB),
-        ),
+        colorSchemeSeed: Colors.blue,
+        scaffoldBackgroundColor: Colors.white,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF111827),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
           elevation: 0,
-          centerTitle: false,
-          iconTheme: IconThemeData(color: Colors.white),
+          scrolledUnderElevation: 0,
+          shape: Border(bottom: BorderSide(color: Color(0xFFDDDDDD))),
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(),
+          isDense: true,
         ),
       ),
       home: controller.isRegistered

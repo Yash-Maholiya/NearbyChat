@@ -1,23 +1,29 @@
-# Build artifacts & tools
-.tools/
-.idea/
-.vscode/
-build/
-.dart_tool/
-*.iml
-.kilo/
-.pytest_cache/
-
-# Python compiled bytecode
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Distribution archives & staging folders
-*.zip
-NearbyChat_Package/
-
-# Android machine-specific
-nearby_chat/android/local.properties
+# Flutter / Dart build output
+nearby_chat/build/
+nearby_chat/.dart_tool/
+nearby_chat/.flutter-plugins-dependencies
 nearby_chat/android/.gradle/
 nearby_chat/android/.kotlin/
+nearby_chat/android/local.properties
+*.hprof
+*.iml
+.idea/
+
+# Private keys: laptop node identities and simulation node keys
+FOR_LAPTOP/laptop_node/data/
+mesh_simulation/keys/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Logs and local tool state
+*.log
+tools/logs/
+tools/runner/
+
+# Archives
+*.zip

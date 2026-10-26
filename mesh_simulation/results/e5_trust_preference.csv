@@ -1,0 +1,7 @@
+mode,trial,messages,pdr_pct,first_try_success_pct,sent_via_dropper_pct,mean_latency_ms,final_score_B
+shortest,1,25,100.0,96.0,4.0,26.84,0.5
+shortest,2,25,100.0,92.0,8.0,51.13,0.5
+shortest,3,25,100.0,92.0,8.0,75.26,0.33
+trust,1,25,100.0,96.0,4.0,26.95,0.5
+trust,2,25,100.0,96.0,4.0,27.39,0.0
+trust,3,25,100.0,96.0,4.0,51.29,0.67

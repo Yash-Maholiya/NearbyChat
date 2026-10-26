@@ -93,237 +93,92 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Widget build(BuildContext context) {
     final currentPeer = widget.controller.activePeer ?? widget.peer;
     final messages = widget.controller.activeMessages;
-    final safetyNumber = currentPeer.safetyNumber ?? 'Deriving...';
+
+    final String status;
+    if (currentPeer.safetyNumber == null) {
+      status = 'Safety number not available';
+    } else if (currentPeer.isVerified) {
+      status = 'Verified, safety no. ${currentPeer.safetyNumber}';
+    } else {
+      status = 'Not verified, safety no. ${currentPeer.safetyNumber}';
+    }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF111827),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Row(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: const Color(0xFF1E40AF),
-              child: Text(
-                currentPeer.username.isNotEmpty ? currentPeer.username[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    currentPeer.username,
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: currentPeer.isConnected ? const Color(0xFF10B981) : const Color(0xFF9CA3AF),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        currentPeer.isConnected ? 'Connected' : 'Offline / Scanning',
-                        style: TextStyle(
-                          color: currentPeer.isConnected ? const Color(0xFF10B981) : const Color(0xFF9CA3AF),
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+            Text(currentPeer.username),
+            Text(
+              currentPeer.isConnected ? 'Connected' : 'Not connected',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              currentPeer.isVerified ? Icons.verified : Icons.verified_user_outlined,
-              color: currentPeer.isVerified ? const Color(0xFF10B981) : const Color(0xFF9CA3AF),
-            ),
-            tooltip: 'Safety Number',
+          TextButton(
             onPressed: () => _showSafetyNumberModal(currentPeer),
+            child: Text(currentPeer.isVerified ? 'Details' : 'Verify'),
           ),
         ],
       ),
       body: Column(
         children: [
-          // In-chat Safety Number Banner
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            color: const Color(0xFF1E293B),
-            child: Row(
-              children: [
-                Icon(
-                  currentPeer.safetyNumber == null
-                      ? Icons.warning_amber_rounded
-                      : (currentPeer.isVerified ? Icons.lock : Icons.lock_clock),
-                  color: currentPeer.safetyNumber == null
-                      ? const Color(0xFFEF4444)
-                      : (currentPeer.isVerified ? const Color(0xFF10B981) : const Color(0xFFF59E0B)),
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    currentPeer.safetyNumber == null
-                        ? 'Safety Number: Unavailable'
-                        : (currentPeer.isVerified
-                            ? 'Verified E2EE Session ($safetyNumber)'
-                            : 'Safety No: $safetyNumber'),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: currentPeer.safetyNumber == null ? const Color(0xFFFCA5A5) : const Color(0xFFCBD5E1),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: () => _showSafetyNumberModal(currentPeer),
-                  child: Text(
-                    currentPeer.isVerified ? 'Details' : 'Verify',
-                    style: TextStyle(
-                      color: currentPeer.safetyNumber == null
-                          ? const Color(0xFFEF4444)
-                          : (currentPeer.isVerified ? const Color(0xFF60A5FA) : const Color(0xFFF59E0B)),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            width: double.infinity,
+            color: Colors.grey.shade100,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(status, style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
           ),
-
           if (currentPeer.hasNameCollision)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              color: const Color(0xFF450A0A),
-              child: const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 16),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Warning: Multiple peers nearby share this username with differing public keys. Verify identity using Safety Number.',
-                      style: TextStyle(color: Color(0xFFFCA5A5), fontSize: 11, height: 1.3),
-                    ),
-                  ),
-                ],
+              color: Colors.red.shade50,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: const Text(
+                'Warning: another device nearby uses this name with a different key. Check the safety number.',
+                style: TextStyle(fontSize: 12, color: Colors.red),
               ),
             ),
-
-          // Messages list
           Expanded(
             child: messages.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.lock_outline, size: 40, color: Color(0xFF374151)),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Start of Encrypted Chat with ${currentPeer.username}',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Messages are encrypted with AES-GCM-256 and sent over BLE.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Color(0xFF6B7280), fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
+                ? const Center(
+                    child: Text('No messages yet', style: TextStyle(color: Colors.black54)),
                   )
                 : ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: messages.length,
-                    itemBuilder: (_, index) => ChatBubble(message: messages[index]),
+                    itemBuilder: (_, index) {
+                      final message = messages[index];
+                      return ChatBubble(
+                        message: message,
+                        onRetry: () => widget.controller.resendMessage(message.id),
+                      );
+                    },
                   ),
           ),
-
-          // Chat Input bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: const BoxDecoration(
-              color: Color(0xFF111827),
-              border: Border(top: BorderSide(color: Color(0xFF1F2937), width: 1)),
-            ),
-            child: SafeArea(
+          const Divider(height: 1),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _textController,
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
                       maxLines: 4,
                       minLines: 1,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: InputDecoration(
-                        hintText: 'Type an encrypted message...',
-                        hintStyle: const TextStyle(color: Color(0xFF6B7280), fontSize: 14),
-                        filled: true,
-                        fillColor: const Color(0xFF0B0F19),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: Color(0xFF374151)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: Color(0xFF374151)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: Color(0xFF3B82F6)),
-                        ),
-                      ),
+                      decoration: const InputDecoration(hintText: 'Message'),
                       onSubmitted: (_) => _handleSend(),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF3B82F6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: _isSending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.send, color: Colors.white, size: 20),
-                      onPressed: _isSending ? null : _handleSend,
-                    ),
+                  ElevatedButton(
+                    onPressed: _isSending ? null : _handleSend,
+                    child: const Text('Send'),
                   ),
                 ],
               ),

@@ -1,0 +1,6 @@
+trial,first_hop_before,recovery_time_s,probes_sent,probes_delivered,path_after
+1,NodeB,0.646,7,7,A-C-E-D
+2,NodeB,0.644,7,7,A-C-E-D
+3,NodeB,0.648,7,7,A-C-E-D
+4,NodeB,0.647,7,7,A-C-E-D
+5,NodeB,0.649,7,7,A-C-E-D

@@ -1,157 +1,113 @@
-# NearbyChat — Secure Peer-to-Peer Mesh Communication System
+# NearbyChat: Secure Peer to Peer Mesh Communication System
 
-[![Flutter Tests](https://img.shields.io/badge/Flutter%20Tests-17%2F17%20Passing-brightgreen)]()
-[![Python Tests](https://img.shields.io/badge/Python%20Tests-9%2F9%20Passing-brightgreen)]()
-[![Analyze](https://img.shields.io/badge/Flutter%20Analyze-0%20Issues-brightgreen)]()
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)]()
+**Academic project:** Design and Security Analysis of a Secure Peer to Peer Mesh Communication System
+**Authors:** Yash (24BCT0155) and Rohan (24BKT0060)
 
-> **Academic Project:** Design and Security Analysis of a Secure Peer-to-Peer Mesh Communication System  
-> **Authors:** Yash (Reg. No. 24BCT0155) & Rohan (Reg. No. 24BKT0060)  
-> **Target Platforms:** Android 7.0+ (API 21) & iOS 13.0+ (Flutter 3.44+)  
-> **Transports:** Bluetooth Low Energy (BLE) Dual-Role (Mobile App) & Mininet-WiFi / UDP Sockets (Simulation Suite)
+NearbyChat is off grid, serverless, end to end encrypted messaging for situations with no internet
+or cellular service. The repository has two tracks:
 
----
+1. **Mobile app (`nearby_chat/`).** Flutter app for Android and iOS. A bitchat style Bluetooth LE
+   mesh: every device relays (TTL 7, duplicate suppression), signed announces show people several
+   hops away, private chats are end to end encrypted and there is a signed public `#nearby` room.
+   Windows laptops join the same mesh with the laptop node in `FOR_LAPTOP/`.
+2. **Mesh simulation (`mesh_simulation/`).** Python prototype of the multi-hop part: discovery,
+   relaying over untrusted nodes, route recovery, relay trust scoring, security tests and measured
+   experiments. Runs on local UDP sockets, optionally inside Mininet-WiFi.
 
-## 1. Executive Summary
+## Status (October 2026)
 
-**NearbyChat** is an infrastructure-independent, serverless, off-grid communication platform designed for scenarios where cellular towers, internet services, and centralized infrastructure are unavailable (natural disasters, network blackouts, remote facilities, high-privacy environments).
+| Part | State |
+|---|---|
+| App code (BLE mesh, crypto, storage, UI) | Complete: multi-hop relay, signed announces, public room, offline queue |
+| App static analysis | `flutter analyze`: no issues |
+| App tests | 56 / 56 pass (incl. mesh routing and interop with the laptop node) |
+| Laptop node (`FOR_LAPTOP/`) | Same mesh protocol over Windows BLE, 19 / 19 tests, offline install |
+| Android APK | `FOR_ANDROID/NearbyChat.apk` (release build, install directly) |
+| App on real devices | Next step: field test with 1 phone + 2 laptops (`DEMO_GUIDE.md`) |
+| iOS build | Code and Bluetooth usage strings ready; needs a Mac with Xcode to build |
+| Mesh simulation | Complete: discovery, routing modes, retries, trust, enrolment, baseline mode |
+| Simulation tests | 21 / 21 pass |
+| Experiments E1 to E5 | Done, results in `mesh_simulation/results/` |
+| Dashboard | Done (`mesh_simulation/dashboard`) |
+| Mininet-WiFi script | Written, not yet run (needs Ubuntu with root) |
 
-NearbyChat bridges two complementary engineering tracks:
-1. **Production Mobile Application (`nearby_chat/`):** A cross-platform Flutter application for Android and iOS providing direct, zero-server encrypted messaging over native Bluetooth Low Energy (BLE) Dual-Role GATT connections.
-2. **Academic Simulation Prototype (`mesh_simulation/`):** A Python-based multi-hop mesh network prototype supporting store-and-forward relaying over untrusted nodes, dynamic route recovery, and relay trust scoring (executable via local sockets or Mininet-WiFi).
+How to run: `HOW_TO_RUN.md`. Demo script: `DEMO_GUIDE.md`.
 
----
-
-## 2. Repository Layout
-
-```
-d:/NearbyChat/
-│
-├── README.md                           # Master project documentation (This file)
-├── PROJECT_CONTEXT.md                  # Comprehensive architectural & cryptographic context
-├── NearbyChat_Presentation.pdf         # 14-slide academic / technical presentation (PDF)
-├── NearbyChat_Presentation.pptx        # 14-slide academic / technical presentation (PowerPoint)
-├── nearbychat_demo.html                # Interactive dual-phone BLE discovery & E2EE simulator
-├── nearbychat_relay_demo.html          # Interactive 3-device multi-hop BLE mesh relay simulator
-├── build_mesh_documents.py             # Word document generator for project plan & synopsis
-│
-├── nearby_chat/                        # [TRACK 1] Production Flutter Mobile Application
-│   ├── lib/                            # Dart source code (models, crypto, BLE, controllers, UI)
-│   ├── test/                           # 17 automated unit and widget tests (100% passing)
-│   ├── android/                        # Android host configurations & BLE permissions
-│   └── ios/                            # iOS host configurations & Bluetooth usage descriptions
-│
-├── mesh_simulation/                    # [TRACK 2] Academic Python Mesh Simulation Suite
-│   ├── node_app/                       # PyNaCl crypto, packet protocol, routing & Node daemon
-│   ├── topology/                       # 4-node line topology (A <-> B <-> C <-> D)
-│   ├── tests/                          # 9 automated pytest test scenarios (100% passing)
-│   └── requirements.txt                # Python dependencies (PyNaCl, pytest)
-│
-└── project_documents/                  # Generated academic deliverables
-    ├── Complete_Project_Plan_Secure_Mesh_System.docx
-    └── Project_Synopsis_Secure_Mesh_System.docx
-```
-
----
-
-## 3. Cryptographic Architecture
-
-NearbyChat enforces zero-knowledge, end-to-end security without a central key authority:
+## Repository layout
 
 ```
-[Alice]                                                                     [Bob]
-   │                                                                          │
-   ├────────── X25519 Public Key Exchange (via BLE Identity Read) ───────────►│
-   │◄─────────────────────────────────────────────────────────────────────────┤
-   │                                                                          │
-   ▼                                                                          ▼
-sharedSecret = X25519(privA, pubB)                         sharedSecret = X25519(privB, pubA)
-                               (Identical Shared Secret)
-   │                                                                          │
-   ▼                                                                          ▼
-messageKey = SHA-256("nearbychat-v1" || secret)            messageKey = SHA-256("nearbychat-v1" || secret)
-Safety No = SHA-256(secret)[0..5] ("a3-f7-2c-10-b8-44")    Safety No = SHA-256(secret)[0..5] ("a3-f7-2c-10-b8-44")
-   │                                                                          │
-   ├── Encrypt: AES-GCM-256(plaintext, messageKey, Nonce, AAD) ──────────────►│
-   │                                                              Decrypt & Verify MAC Tag
+NearbyChat/
+  README.md, PROJECT_CONTEXT.md, TEAM_GUIDE.md
+  FOR_ANDROID/                  NearbyChat.apk + install README
+  FOR_LAPTOP/                   laptop node (Windows, BLE only) + README
+  HOW_TO_RUN.md, DEMO_GUIDE.md  running the 3 device demo
+  nearbychat_demo.html          browser demo: two phones, discovery and encrypted chat
+  nearbychat_relay_demo.html    browser demo: three device relay with packet inspection
+  tools/                        Windows helpers: install Flutter, Android SDK, build the APK
+  nearby_chat/                  TRACK 1: Flutter app
+    lib/                        models, services (crypto, BLE, frames, storage), controller, screens
+    test/                       34 tests
+  mesh_simulation/              TRACK 2: Python mesh
+    node_app/ topology/ experiments/ dashboard/ scripts/ tests/ results/
 ```
 
-- **Confidentiality:** **AES-GCM-256** with unique 12-byte initialization vectors per message.
-- **Authenticity & Integrity:** 128-bit GCM MAC tag with canonical Additional Authenticated Data (AAD) binding message IDs, timestamps, and participant keys.
-- **MITM Defense:** In-person visual/spoken comparison of the 6-byte hex **Safety Number**.
-- **Untrusted Relays:** Intermediary nodes observe only outer routing headers (TTL, hops, destination); the payload remains completely unreadable and tamper-evident.
+## App security design (as implemented)
 
----
+* **Identity.** One X25519 key pair per install, stored with `flutter_secure_storage`
+  (Android Keystore / iOS Keychain). The public key is the identity; the fingerprint is its first 12
+  base64 characters.
+* **Discovery.** Each phone is a GATT server and client at the same time. It advertises
+  `NC-<username>` with service `c0de0001-...`. A Read characteristic returns `{username, publicKey}`,
+  and a Write characteristic is the inbox.
+* **Per message forward secrecy.** For every message the sender makes a fresh ephemeral X25519
+  key, computes `X25519(ephemeral, recipient static)` and derives the message key with
+  HKDF-SHA256 (salt `nearbychat-pfs-v1`, info = message id). The ephemeral private key is discarded.
+* **Encryption.** AES-GCM-256 with a random 12 byte nonce. The AAD binds version, message id,
+  sender name, both public keys, the ephemeral key, the timestamp, the ACK flag and the original
+  message id. Changing any header field makes decryption fail.
+* **Delivery receipts.** ACK = HMAC-SHA256(message key, "ack:" + message id). Only the real
+  recipient can derive the message key, so ACKs cannot be forged.
+* **Replay and freshness.** A message id that was already accepted is never stored twice (it is
+  ACKed again). Messages whose authenticated timestamp is more than 30 minutes off are rejected.
+* **Safety number.** HKDF-SHA256 over the static X25519 secret with the sorted public keys,
+  first 6 bytes shown as `xx-xx-xx-xx-xx-xx`. Users compare it in person to detect a MITM.
+* **Impersonation.** Display names come from the locally known public key, never from the
+  envelope. Unknown keys show as `Unverified (<fingerprint>)`. The same name with a different key
+  shows a name collision warning.
+* **Framing.** 10 byte header (4 byte message hash, frame index, total frames, payload length).
+  The app asks for a 247 byte ATT MTU after connecting and sizes frames to fit. If that fails it
+  falls back to 20 byte writes, which every BLE device supports.
+* **History at rest.** Encrypted with AES-GCM-256 under a random database key kept in secure
+  storage. Rolling 500 messages per peer. Old plaintext history is migrated automatically.
 
-## 4. Verification & Automated Test Status
+Limits: an ACK that arrives after the app restarts cannot be verified (message keys stay in RAM
+only, by design). `originalMessageId` in ACK headers is visible to an eavesdropper, so receipts
+can be linked to messages. The username is stored in shared preferences, not secure storage.
 
-### Track 1: Flutter Mobile App
-```bash
-cd nearby_chat
-flutter analyze
-flutter test
-```
-- **Static Analysis:** `No issues found! (0 errors, 0 warnings)`
-- **Automated Tests:** **`17/17 PASSED`**
-  - Identities initialized with valid base64 keys and fingerprints
-  - X25519 shared secret derivation is symmetric
-  - Safety Number derivation matches on both sides
-  - AES-GCM-256 encryption and decryption roundtrip succeeds
-  - Tampering with ciphertext causes authentication failure
-  - Tampering with AAD header causes authentication failure
-  - Large payloads correctly sliced and reassembled across 20-byte MTUs
-  - Out-of-order frame arrival reassembles correctly
-  - Corrupted and truncated frames are safely discarded
-  - Strict rolling 500-message history cap enforced
-  - Message delivery status updates
-  - Setup screen launches correctly on clean start
+## How to run
 
-### Track 2: Python Mesh Network Simulation
-```bash
-pytest mesh_simulation/tests/ -v
-```
-- **Automated Tests:** **`9/9 PASSED`**
-  - Key generation and 12-char fingerprint derivation
-  - Ed25519 digital signature generation and verification
-  - SealedBox Curve25519 encryption and decryption
-  - Tampered ciphertext rejection
-  - 3-hop multi-hop relaying across NodeA -> NodeB -> NodeC -> NodeD
-  - End-to-end delivery acknowledgements (D -> C -> B -> A)
-  - Intermediary relays cannot read plaintext payloads
-  - Tampered signature packets dropped at relay
-  - ReplayCache duplicate suppression and timestamp expiry
-
----
-
-## 5. Interactive Web Demos
-
-Experience the dual-role BLE and multi-hop mesh workflows directly in any web browser without installation:
-
-1. **[nearbychat_demo.html](file:///d:/NearbyChat/nearbychat_demo.html):**  
-   Simulates two phones (Alice and Bob) side-by-side. Demonstrates identity setup, BLE scanning/discovery, X25519 ECDH shared secret derivation, and step-by-step AES-GCM-256 encrypted chat.
-2. **[nearbychat_relay_demo.html](file:///d:/NearbyChat/nearbychat_relay_demo.html):**  
-   Simulates a 3-device multi-hop BLE mesh relay (Alice $\to$ Relay $\to$ Bob). Features a Deep Packet Inspection (DPI) panel demonstrating how relays forward ciphertext without the ability to decrypt the payload.
-
----
-
-## 6. How to Run & Build
-
-### Mobile App (Flutter)
+### App
 ```bash
 cd nearby_chat
 flutter pub get
-flutter run
+flutter analyze
+flutter test
+flutter run            # with a phone connected by USB
 ```
+On Windows, `tools/START_FLUTTER_TOOLS.bat` installs Flutter and runs the checks, and
+`tools/SETUP_ANDROID_SDK.bat` installs Java 17 and the Android SDK, and
+`tools/FIX_ANDROID_BUILD.bat` checks the network, installs the Android platform and builds a debug APK.
 
-### Python Mesh Simulation (Sockets / Local Topology)
+### Mesh simulation
 ```bash
-python -m mesh_simulation.topology.line_topology
+pip install -r mesh_simulation/requirements.txt
+python -m pytest mesh_simulation/tests -v
+python -m mesh_simulation.experiments.run_experiments
+python -m mesh_simulation.dashboard.app          # http://127.0.0.1:5000
 ```
+See `mesh_simulation/README.md` for the CLI node, enrolment and Mininet-WiFi.
 
-### Generate Academic Word Documents
-```bash
-python build_mesh_documents.py
-```
-Outputs generated in `project_documents/`:
-- `Complete_Project_Plan_Secure_Mesh_System.docx`
-- `Project_Synopsis_Secure_Mesh_System.docx`
+### Browser demos
+Open `nearbychat_demo.html` or `nearbychat_relay_demo.html` in a browser. They are teaching
+animations of the protocol and do not run the real app code.
+

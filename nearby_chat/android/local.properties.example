@@ -1,0 +1,4 @@
+# In Flutter, local.properties is automatically generated when running 'flutter run' or 'flutter pub get'.
+# If building manually via Gradle, ensure sdk.dir points to your Android SDK installation:
+# sdk.dir=C:\\Users\\<YourUser>\\AppData\\Local\\Android\\Sdk
+# flutter.sdk=C:\\src\\flutter

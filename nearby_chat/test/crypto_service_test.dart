@@ -148,6 +148,29 @@ void main() {
       );
     });
 
+    test('ACK flag and original message id are bound into the AAD', () async {
+      final envelope = await aliceCrypto.encryptMessage(
+        plaintext: 'bound header',
+        senderUsername: 'Alice',
+        recipientPublicKeyBase64: bobCrypto.publicKeyBase64,
+      );
+      final flipped = ChatEnvelope(
+        version: envelope.version,
+        messageId: envelope.messageId,
+        senderUsername: envelope.senderUsername,
+        senderPublicKey: envelope.senderPublicKey,
+        recipientPublicKey: envelope.recipientPublicKey,
+        ephemeralPublicKey: envelope.ephemeralPublicKey,
+        timestamp: envelope.timestamp,
+        nonce: envelope.nonce,
+        ciphertext: envelope.ciphertext,
+        mac: envelope.mac,
+        originalMessageId: 'injected',
+      );
+      expect(await bobCrypto.decryptEnvelope(envelope), 'bound header');
+      expect(() => bobCrypto.decryptEnvelope(flipped), throwsA(isA<SecretBoxAuthenticationError>()));
+    });
+
     test('Tampering with AAD header (senderUsername) causes authentication failure', () async {
       final envelope = await aliceCrypto.encryptMessage(
         plaintext: 'Transfer 100 credits',

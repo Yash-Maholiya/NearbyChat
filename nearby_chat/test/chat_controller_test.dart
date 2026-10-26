@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -231,5 +232,105 @@ void main() {
     controller.selectPeer(placeholder);
     expect(controller.activeMessages.first.sender, 'Unverified ($expectedFingerprint)');
     expect(controller.activeMessages.first.body, 'I am an impostor');
+  });
+
+  Future<Peer> addBob() async {
+    ble.peerController.add(Peer(
+      deviceId: 'device-bob',
+      username: 'Bob',
+      publicKey: bobCrypto.publicKeyBase64,
+      lastSeen: DateTime.now(),
+    ));
+    await pumpEventQueue();
+    return controller.peers.first;
+  }
+
+  test('Replayed message is stored once but ACKed every time', () async {
+    final bob = await addBob();
+    final sentAcks = <ChatEnvelope>[];
+    ble.onSendEnvelope = (deviceId, env) async {
+      if (env.isAck) sentAcks.add(env);
+      return true;
+    };
+
+    final envelope = await bobCrypto.encryptMessage(
+      plaintext: 'pay 10 rupees',
+      senderUsername: 'Bob',
+      recipientPublicKeyBase64: aliceCrypto.publicKeyBase64,
+    );
+
+    ble.envelopeController.add(envelope);
+    await pumpEventQueue();
+    ble.envelopeController.add(envelope); // attacker replays the captured frame
+    await pumpEventQueue();
+
+    controller.selectPeer(bob);
+    expect(controller.activeMessages.where((m) => m.body == 'pay 10 rupees').length, 1);
+    expect(sentAcks.length, 2);
+  });
+
+  test('Message with a stale authenticated timestamp is rejected', () async {
+    final bob = await addBob();
+    final old = DateTime.now().subtract(const Duration(hours: 2)).millisecondsSinceEpoch;
+    final envelope = await bobCrypto.encryptMessage(
+      plaintext: 'old news',
+      senderUsername: 'Bob',
+      recipientPublicKeyBase64: aliceCrypto.publicKeyBase64,
+      timestampOverride: old,
+    );
+
+    ble.envelopeController.add(envelope);
+    await pumpEventQueue();
+
+    controller.selectPeer(bob);
+    expect(controller.activeMessages, isEmpty);
+  });
+
+  test('Failed message can be resent with the same id', () async {
+    final bob = await addBob();
+    controller.selectPeer(bob);
+
+    var radioUp = false;
+    final sentIds = <String>[];
+    ble.onSendEnvelope = (deviceId, env) async {
+      sentIds.add(env.messageId);
+      return radioUp;
+    };
+
+    expect(await controller.sendMessage('are you there?'), isFalse);
+    final failed = controller.activeMessages.single;
+    expect(failed.status, MessageStatus.failed);
+
+    radioUp = true;
+    expect(await controller.resendMessage(failed.id), isTrue);
+    expect(controller.activeMessages.single.status, MessageStatus.sent);
+    expect(sentIds, [failed.id, failed.id]);
+
+    // Only failed messages can be resent
+    expect(await controller.resendMessage(failed.id), isFalse);
+  });
+
+  test('A tampered message is dropped and raises a security alert', () async {
+    final env = await bobCrypto.encryptMessage(
+      plaintext: 'secret',
+      senderUsername: 'Bob',
+      recipientPublicKeyBase64: aliceCrypto.publicKeyBase64,
+    );
+    final ct = Uint8List.fromList(env.ciphertext)..[0] ^= 1;
+    ble.envelopeController.add(env.copyWith(ciphertext: ct));
+    await pumpEventQueue();
+
+    expect(controller.securityAlertCount, 1);
+    expect(controller.securityAlert, contains('integrity check'));
+    expect(controller.peers, isEmpty);
+
+    ble.envelopeController.add(await bobCrypto.encryptMessage(
+      plaintext: 'clean',
+      senderUsername: 'Bob',
+      recipientPublicKeyBase64: aliceCrypto.publicKeyBase64,
+    ));
+    await pumpEventQueue();
+    expect(controller.securityAlertCount, 1);
+    expect(controller.peers, hasLength(1));
   });
 }

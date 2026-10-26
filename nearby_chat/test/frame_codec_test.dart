@@ -130,5 +130,26 @@ void main() {
       }
       expect(assembled, equals(data));
     });
+
+    test('Frame size follows the negotiated MTU', () {
+      expect(FrameCodec.frameSizeForMtu(23), 20);
+      expect(FrameCodec.frameSizeForMtu(185), 182);
+      expect(FrameCodec.frameSizeForMtu(247), 244);
+      expect(FrameCodec.frameSizeForMtu(10), 20);
+      expect(FrameCodec.frameSizeForMtu(1000), 512);
+    });
+
+    test('Default 23 byte MTU still carries a full envelope in 20 byte writes', () {
+      final data = Uint8List.fromList(List.generate(700, (i) => i % 251));
+      final frames = FrameCodec.fragment(data, maxFrameSize: FrameCodec.frameSizeForMtu(23));
+      expect(frames.every((f) => f.length <= 20), isTrue);
+      expect(frames.length, 70);
+      final reassembler = FrameReassembler();
+      Uint8List? out;
+      for (final f in frames.reversed) {
+        out = reassembler.processFrame(f, senderId: 'android-peer') ?? out;
+      }
+      expect(out, equals(data));
+    });
   });
 }

@@ -4,9 +4,9 @@
 > **Project Name:** NearbyChat  
 > **Academic Title:** Design and Security Analysis of a Secure Peer-to-Peer Mesh Communication System  
 > **Authors:** Yash (Reg. No. 24BCT0155) & Rohan (Reg. No. 24BKT0060)  
-> **Target Platforms:** Android 7.0+ (API 21) & iOS 13.0+ (Flutter 3.44+, Dart 3.x)  
+> **Target Platforms:** Android & iOS (Flutter 3.44+, verified with Flutter 3.47.7, Dart 3.x)  
 > **Network Transport:** Bluetooth Low Energy (BLE) Dual-Role (Central + Peripheral)  
-> **Last Updated:** September 2026  
+> **Last Updated:** October 2026  
 
 ---
 
@@ -36,14 +36,14 @@ The NearbyChat repository bridges two complementary tracks:
     Dimension 1: Mobile App                                         Dimension 2: Research & Mesh
     (Flutter / Dart / BLE)                                          (Mininet-WiFi / Python / Emulation)
   • Production mobile client for Android & iOS                    • Multi-hop academic simulation & evaluation
-  • Point-to-point BLE GATT dual-role transport                   • 4–10 virtual wireless nodes in line/mesh topologies
+  • Point-to-point BLE GATT dual-role transport                   • 4-10 virtual wireless nodes in line/mesh topologies
   • X25519 ECDH + AES-GCM-256 authenticated encryption            • Dynamic route recovery, packet dropper analysis
   • Local on-device persistent history & Keystore                 • Privacy-preserving trust scoring & audit logs
 ```
 
 1. **The Mobile Application (`nearby_chat/`):**  
    A cross-platform Flutter application implementing real-world BLE advertising, scanning, GATT server/client dual roles, on-device hardware-backed key management, and instant encrypted chat.
-2. **The Research & Mesh Simulation (`project_documents/`, `build_mesh_documents.py`):**  
+2. **The Research & Mesh Simulation (`mesh_simulation/`):**  
    An academic simulation framework evaluating multi-hop forwarding, route recovery, trust scoring heuristics, and security defense boundaries across virtual nodes running in Mininet-WiFi / Linux network namespaces.
 
 ---
@@ -51,35 +51,30 @@ The NearbyChat repository bridges two complementary tracks:
 ## 3. Repository Directory Structure
 
 ```
-d:/NearbyChat/
-│
-├── PROJECT_CONTEXT.md                  # Comprehensive project context & architecture guide (This file)
-├── build_mesh_documents.py             # Automated docx builder for project synopsis & plan
-├── NearbyChat_Presentation.pdf         # 14-slide academic / technical presentation (PDF)
-├── NearbyChat_Presentation.pptx        # 14-slide academic / technical presentation (PowerPoint)
-├── nearbychat_demo.html                # Interactive dual-phone BLE discovery & E2EE simulator
-├── nearbychat_relay_demo.html          # Interactive 3-device multi-hop BLE mesh relay simulator
-│
-├── .tools/                             # Local development tooling
-│   └── flutter/                        # Embedded Flutter SDK runtime
-│
-├── project_documents/                  # Academic specifications, research guides, and test plans
-│   ├── Complete_Project_Plan_Secure_Mesh_System.docx   # Full implementation guide & test methodology
-│   ├── Project_Synopsis_Secure_Mesh_System.docx        # Condensed academic project synopsis
-│   ├── qa_full/                        # Quality assurance and verification logs (Full)
-│   └── qa_synopsis/                    # Quality assurance and verification logs (Synopsis)
-│
-└── nearby_chat/                        # Production Flutter mobile codebase
-    ├── pubspec.yaml                    # Dart SDK 3.5.0+, dependencies, assets definition
-    ├── pubspec.lock                    # Resolved package dependency lockfile
-    ├── analysis_options.yaml           # Linting rules (`flutter_lints ^5.0.0`)
-    ├── README.md                       # Mobile app getting started guide
-    ├── android/                        # Android host project (Gradle, API 21+, Kotlin)
-    │   └── app/src/main/AndroidManifest.xml  # Android permissions & BLE configurations
-    ├── ios/                            # iOS host project (Xcode, CocoaPods, Swift)
-    ├── test/                           # Flutter unit and widget tests
-    └── lib/                            # Application source code
-        └── main.dart                   # Application entry point & screen router
+NearbyChat/
+├── README.md, PROJECT_CONTEXT.md, TEAM_GUIDE.md
+├── nearbychat_demo.html                    # browser demo: two phones, discovery, E2EE chat
+├── nearbychat_relay_demo.html              # browser demo: 3 device relay with packet inspection
+├── tools/                                  # Windows helpers
+│   ├── START_FLUTTER_TOOLS.bat             # installs Flutter, runs analyze/test
+│   ├── BUILD_APK.bat                       # analyze, test and build the APK into FOR_ANDROID
+│   ├── SETUP_ANDROID_SDK.bat               # installs JDK 17 + Android SDK tools
+│   └── FIX_ANDROID_BUILD.bat               # network check, Android platform install, debug APK build
+├── nearby_chat/                            # TRACK 1: Flutter app
+│   ├── lib/models/                         # peer, chat_message, chat_envelope
+│   ├── lib/services/                       # crypto_service, ble_service, frame_codec, storage_service
+│   ├── lib/controllers/chat_controller.dart
+│   ├── lib/screens/, lib/widgets/          # setup, nearby people, conversation, safety number dialog
+│   ├── test/                               # 34 tests
+│   └── android/, ios/, windows/            # platform hosts
+└── mesh_simulation/                        # TRACK 2: Python mesh (see mesh_simulation/README.md)
+    ├── node_app/                           # crypto, protocol, routing, trust registry, node, CLI
+    ├── topology/                           # simulated network, line topology, Mininet-WiFi script
+    ├── experiments/run_experiments.py      # E1 to E5 -> results/
+    ├── dashboard/                          # Flask dashboard
+    ├── scripts/enroll.py                   # trusted enrolment
+    ├── tests/                              # 21 tests
+    └── results/                            # CSV, charts/, SUMMARY.md
 ```
 
 ---
@@ -104,7 +99,7 @@ The Flutter application is structured in four decoupled layers:
 │      Crypto & Security Layer     │ │      BLE Transport Layer          │
 │ • X25519 Key Agreement (ECDH)    │ │ • Peripheral: GATT Server & Adv   │
 │ • AES-GCM-256 Authenticated Enc  │ │ • Central: Scanner & Client       │
-│ • SHA-256 Safety Number Derivation│ │ • FrameCodec: Fragmentation/MTU   │
+│ • HKDF-SHA256 Safety Numbers     │ │ • FrameCodec: Fragmentation/MTU   │
 │ • Hardware Key Storage (Keystore)│ │ • Universal BLE Integration       │
 └───────────────────┬──────────────┘ └──────────────┬────────────────────┘
                     │                               │
@@ -129,12 +124,10 @@ In a decentralized environment without master routers, both phones must be capab
   - On discovery, establishes a BLE connection, discovers services, and reads the **Identity Characteristic** to register the peer in the active peer list.
 
 ### 4.2. Frame Segmentation & MTU Handling (`FrameCodec`)
-Standard BLE ATT MTU guarantees as low as **23 bytes** (3 bytes ATT header + 20 bytes data payload). Encrypted envelopes with ciphertext, IVs, tags, and metadata span 300–1200 bytes.
-- **Packet Structure:**
-  - `Header` (8 bytes): `[MessageID: 2B] [FrameIndex: 2B] [TotalFrames: 2B] [PayloadLength: 2B]`
-  - `Payload` (variable, typically 12–180 bytes depending on negotiated MTU).
-- **Reassembly:**  
-  The receiver’s `FrameReassembler` buffers frames indexed by `MessageID`. Once all `TotalFrames` are collected, the payload is concatenated and passed to the crypto decoding pipeline.
+BLE guarantees only a 23 byte ATT MTU (20 bytes of data per write) until a larger MTU is negotiated. Encrypted envelopes are JSON of roughly 500 to 1200 bytes.
+- **MTU negotiation:** after connecting, the sender calls `requestMtu(247)` and sizes frames as `MTU - 3` (max 512). Android starts every connection at 23; iOS negotiates by itself (usually 185). If the request fails the sender falls back to 20 byte frames, which every device accepts.
+- **Frame structure:** `Header` (10 bytes): `[MessageHash: 4B] [FrameIndex: 2B] [TotalFrames: 2B] [PayloadLength: 2B]`, then the payload chunk.
+- **Reassembly:** `FrameReassembler` buffers frames per (sender device, message hash), accepts them in any order, drops truncated or inconsistent frames, caps buffers (100) and frames per message (500), and expires incomplete buffers after 30 s.
 
 ### 4.3. End-to-End Cryptographic Protocol
 NearbyChat enforces zero-server key exchange with Perfect Forward Secrecy (PFS) under **Protocol Version 2**:
@@ -171,6 +164,11 @@ NearbyChat enforces zero-server key exchange with Perfect Forward Secrecy (PFS) 
      $$\text{safetyNumber} = \text{Truncate}_{6\text{-bytes}}(\text{HKDF}(\text{IKM}=\text{staticSecret}, \text{salt}=\text{"nearbychat-safety-v1"}, \text{info}=\text{sortedKeys}))$$
    - Both users compare this 6-byte hex sequence visually in person. If cryptographic derivation fails, the session displays an explicit error state and disables verification.
 
+8. **Replay & Freshness:**
+   - A message id that was already accepted is never stored or shown again; the receiver only re-sends the ACK (the sender may have missed it).
+   - The timestamp is inside the AAD, so it is authentic. Messages more than 30 minutes away from local time are rejected.
+9. **Resend:** a message whose BLE write failed is marked `failed`; tapping it re-encrypts it with a new ephemeral key under the same message id, so the receiver de-duplicates it if the first copy did arrive.
+
 ### 4.3.1. Protocol Security Limitations & Trade-offs
 1. **PFS Post-Restart ACK Loss:**  
    To preserve forward secrecy, ephemeral `messageKey` instances retained for verifying incoming HMAC ACKs are stored strictly in volatile RAM with a 5-minute timeout and 200-key LRU cap. If the app process terminates before an ACK is received, unverified ACKs received after app restart cannot be validated against the wiped key, leaving the message status at `sent`. Ephemeral keys are intentionally never persisted to non-volatile flash storage.
@@ -183,8 +181,8 @@ NearbyChat enforces zero-server key exchange with Perfect Forward Secrecy (PFS) 
 - **Identity & Secrets (`flutter_secure_storage`):**
   - `nearbychat.identity.private_key` (Base64)
   - `nearbychat.identity.public_key` (Base64)
-  - `nearbychat.profile.username`
   - `nearbychat.storage.db_key` (256-bit AES master database key)
+- **Profile and verification flags (`shared_preferences`):** `nearbychat.profile.username`, `nearbychat.verified_peers`.
 - **Chat History at Rest (`shared_preferences`):**
   - Decrypted messages are **never** stored in plaintext on disk.
   - History is encrypted with **AES-GCM-256** using the local database key with a unique 12-byte nonce per write.
@@ -195,11 +193,17 @@ NearbyChat enforces zero-server key exchange with Perfect Forward Secrecy (PFS) 
 
 ## 5. Multi-Hop Mesh Network Scope & Architecture
 
-NearbyChat bridges two architectural dimensions:
-1. **Production Mobile Client (`nearby_chat`):**  
-   Implements a hardened, zero-infrastructure **1-hop Point-to-Point BLE GATT transport** with dual-role Central/Peripheral discovery, PFS encryption, and HMAC ACKs. Multi-hop mesh relay is deferred to Phase 5 / Future Work to ensure production stability.
-2. **Academic Mesh Emulation & Research (`project_documents`, `mesh_simulation`):**  
-   Academic simulation framework modeling multi-hop store-and-forward mesh routing, TTL, packet dropper analysis, and trust scoring heuristics in Mininet-WiFi / virtual network namespaces.
+1. **Mobile client (`nearby_chat`):** one hop BLE GATT messaging with PFS encryption and HMAC ACKs. Multi-hop relaying inside the app is future work.
+2. **Mesh simulation (`mesh_simulation`):** implements the multi-hop design from the project plan with real sockets and real cryptography (PyNaCl):
+   - signed HELLO discovery, neighbour table with timeout, trusted enrolment registry with short authentication strings;
+   - SealedBox payloads for the destination only, Ed25519 signature over header and ciphertext, node id bound to the signing key;
+   - signed message id, attempt, sequence, timestamp and expiry; bounded replay cache; TTL;
+   - reverse path route learning with alternate next hops; `flood`, `shortest` and `trust` routing;
+   - signed end to end ACKs, retransmission that avoids the failed next hop, relay trust score;
+   - security on/off baseline, simulated radio range and loss, link cuts, controlled dropper;
+   - experiments E1 to E5 with CSV and charts, Flask dashboard, CLI node, Mininet-WiFi script.
+
+---
 
 ## 6. Comparative Literature Matrix
 
@@ -218,14 +222,18 @@ NearbyChat bridges two architectural dimensions:
 
 ## 7. Threat Model & Security Controls
 
-| Threat Vector | Unmitigated Impact | NearbyChat Defensive Control |
+| Threat | Mobile app control | Mesh simulation control |
 | :--- | :--- | :--- |
-| **Radio Eavesdropping** | Attacker sniffing BLE traffic captures message text. | Payloads encrypted via **AES-GCM-256** with unique IVs; plaintext never touches radio hardware. |
-| **Man-in-the-Middle (MITM)** | Attacker injects their public key during discovery. | **Safety Number verification**: Out-of-band visual/spoken fingerprint match catches key substitution. |
-| **Replay Attacks** | Attacker replays captured packets to duplicate actions. | Unique UUIDv4, sequence number, millisecond timestamp, validity window, and bounded replay cache. |
-| **Packet Tampering** | Relays alter payload or headers in transit. | 128-bit **GCM authentication tag** + sender **Ed25519 signature** verify byte-exact integrity. |
-| **Packet Dropper / Black Hole** | Malicious relay accepts and silently drops traffic. | End-to-end signed delivery ACKs; missing ACKs trigger dynamic relay rerouting and trust score penalty. |
-| **Device Key Extraction** | Malware extracts keys from device flash memory. | Keys stored in hardware-backed storage (**Android Keystore** / **iOS Secure Enclave**). |
+| **Eavesdropping** | AES-GCM-256 with per message ephemeral key; plaintext never on the radio | SealedBox for the destination; relays see ciphertext only (test T4) |
+| **MITM / key substitution** | In person Safety Number comparison | Trusted registry from out of band enrolment; substituted keys rejected |
+| **Impersonation** | Names bound to locally known public keys; unknown keys shown as Unverified | Node id must equal SHA-256(signing key); unknown ids rejected (T7) |
+| **Tampering** | GCM tag + AAD over every header field | Ed25519 signature over header and ciphertext (T5) |
+| **Replay** | Seen message id set + 30 minute timestamp window | Signed id/attempt/expiry + bounded replay cache (T6) |
+| **Dropper / black hole** | Delivery shown only after authenticated ACK; failed messages can be resent | ACK timeout, retransmission around the failed hop, trust score (T8, E5) |
+| **Flooding** | Frame buffer and frame count caps | TTL, duplicate suppression, payload cap, per sender rate limit |
+| **Key extraction** | Keys in Keystore / Keychain via flutter_secure_storage | Key files with mode 600, never logged or committed |
+
+Out of scope: physical device compromise, jamming, global traffic analysis.
 
 ---
 
@@ -233,77 +241,62 @@ NearbyChat bridges two architectural dimensions:
 
 | Layer / Subsystem | Package / Tool | Version | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Core Language** | Dart | `^3.5.0` | Strongly typed, null-safe client runtime |
-| **UI Framework** | Flutter | `3.44+` | Declarative UI, Material Design 3, Dark Mode |
-| **BLE Transport** | `universal_ble` | `^2.2.0` | Cross-platform BLE Central & Peripheral GATT roles |
-| **Cryptography** | `cryptography` | `^2.7.0` | X25519 key agreement, AES-GCM-256, SHA-256, Ed25519 |
-| **Key Persistence** | `flutter_secure_storage` | `^9.2.2` | Keystore / Keychain hardware-backed key persistence |
-| **Message History** | `shared_preferences` | `^2.3.2` | Fast, lightweight on-device JSON history store |
-| **Identifiers** | `uuid` | `^4.5.1` | RFC4122 v4 unique identifier generation |
-| **Permissions** | `permission_handler` | `^11.3.1` | Android/iOS runtime permission negotiation |
-| **Document Generator**| `python-docx` | `^1.2.0` | Generates standardized academic reports and synopses |
-| **Mesh Emulation** | Mininet-WiFi & Python | `3.10+` | Virtual wireless station emulation, mobility & loss testing |
+| **Core Language** | Dart | `^3.5.0` | Null-safe client runtime |
+| **UI Framework** | Flutter | `3.44+` (tested 3.47.7) | Plain Material 3 light UI |
+| **BLE Transport** | `universal_ble` | `^2.2.0` (locked 2.3.0) | Central and Peripheral GATT roles, MTU request |
+| **Cryptography** | `cryptography` | `^2.7.0` | X25519, HKDF, AES-GCM-256, HMAC-SHA256 |
+| **Key Persistence** | `flutter_secure_storage` | `^9.2.2` | Keystore / Keychain |
+| **Message History** | `shared_preferences` | `^2.3.2` | Encrypted history blobs, profile |
+| **Identifiers** | `dart:math` (built in) | | Random UUID v4 message ids |
+| **Permissions** | `permission_handler` | `^11.3.1` | Bluetooth / location runtime permissions |
+| **Laptop node** | bleak, cryptography | | BLE (WinRT) and the same crypto as the app; web page served with the Python standard library |
+| **Simulation crypto** | PyNaCl (libsodium) | `>=1.5` | Ed25519, SealedBox |
+| **Simulation dashboard** | Flask | `>=3.0` | Local dashboard |
+| **Charts** | Matplotlib | `>=3.7` | Experiment charts |
+| **Tests** | pytest / flutter_test | | 21 Python and 34 Flutter tests |
+| **Emulation** | Mininet-WiFi | 2.6 | Optional wireless emulation (Ubuntu, root) |
+| **Documents** | python-docx | `1.2` | Synopsis and project plan generator |
 
 ---
 
 ## 9. Implementation Roadmap & Current Status
 
-```
-[Phase 1: Scaffold] ──► [Phase 2: BLE Transport] ──► [Phase 3: Crypto Engine] ──► [Phase 4: UI] ──► [Phase 5: Test & Mesh]
-   (IN PROGRESS)             (QUEUED)                     (QUEUED)                  (QUEUED)            (QUEUED)
-```
+| Phase | Content | Status |
+| :--- | :--- | :--- |
+| 1 Scaffold | Flutter project, dependencies, Android manifest and iOS Info.plist Bluetooth permissions | Done |
+| 2 BLE transport | Advertising, GATT server, scanning, identity read, inbox writes, FrameCodec, MTU negotiation | Done |
+| 3 Cryptography | X25519 identity, per message PFS keys, AES-GCM AAD, HMAC ACKs, Safety Numbers | Done |
+| 4 UI and state | Setup, Nearby People, Conversation screens, ChatController, resend failed messages | Done |
+| 5a Simulation | Mesh nodes, routing, security, experiments E1 to E5, dashboard | Done |
+| 5b Device testing | Two phones (Android + iOS or two Android), MTU and range checks | To do |
+| 5c Mininet-WiFi run | Run `mininet_topology.py` on Ubuntu and add the CSVs to results | To do |
+| Future | Multi-hop relaying inside the app | Not started |
 
-1. **Phase 1: Project Scaffold & OS Permissions** *(In Progress)*
-   - [x] Flutter project initialization (`nearby_chat/`).
-   - [x] Dependencies added to `pubspec.yaml`.
-   - [ ] Android manifest permissions (`BLUETOOTH_SCAN`, `BLUETOOTH_ADVERTISE`, `BLUETOOTH_CONNECT`, `ACCESS_FINE_LOCATION`).
-   - [ ] iOS Info.plist declarations (`NSBluetoothAlwaysUsageDescription`, `NSBluetoothPeripheralUsageDescription`).
-2. **Phase 2: BLE Transport Engine**
-   - [ ] Peripheral mode: GATT server setup, identity service advertising (`NC-<username>`).
-   - [ ] Central mode: BLE scanner, connection manager, characteristic discovery.
-   - [ ] `FrameCodec`: Fragmentation and reassembly over 20-byte to 512-byte ATT MTU.
-3. **Phase 3: Cryptography Services**
-   - [ ] Key generation & hardware keystore integration (`flutter_secure_storage`).
-   - [ ] X25519 ECDH key exchange & shared secret derivation.
-   - [ ] AES-GCM-256 envelope encryption/decryption with AAD.
-   - [ ] Safety number generation and visual comparison widget.
-4. **Phase 4: User Interface & State Management**
-   - [ ] `SetupScreen`: First-launch username configuration & key initialization.
-   - [ ] `NearbyPeopleScreen`: Radar/List of discovered peers with signal indicators.
-   - [ ] `ConversationScreen`: Real-time chat bubbles, delivery receipt markers, safety number viewer.
-   - [ ] `ChatController`: Stream-based reactive orchestration between UI, BLE, and crypto.
-5. **Phase 5: Evaluation & Multi-Hop Extensions**
-   - [ ] Integration testing with two physical devices (Android + iOS).
-   - [ ] Mininet-WiFi line-topology and mesh-topology script execution.
-   - [ ] Store-and-forward mesh routing algorithm integration.
+Checks: `flutter analyze` no issues, `flutter test` 34/34, `pytest mesh_simulation/tests` 21/21.
 
 ---
 
 ## 10. Developer Guide & Usage Commands
 
-### Running Interactive Web Simulators
-Two full-featured web simulators are available directly in the project root:
-- **Direct P2P E2EE Simulator:** Open `nearbychat_demo.html` in any modern browser to test dual-phone key generation, BLE discovery, and interactive AES-GCM message exchange.
-- **Multi-Hop Relay Simulator:** Open `nearbychat_relay_demo.html` to simulate 3-device multi-hop routing, packet forwarding, deep packet inspection (DPI), and packet tampering.
-
-### Generating Academic Documentation
-To regenerate the Word documentation for the project synopsis and plan:
-```bash
-python build_mesh_documents.py
-```
-Outputs generated in `d:/NearbyChat/project_documents/`:
-- `Complete_Project_Plan_Secure_Mesh_System.docx`
-- `Project_Synopsis_Secure_Mesh_System.docx`
-
-### Developing the Mobile Application
-Navigate to the Flutter directory and ensure dependencies are installed:
+### Mobile app
 ```bash
 cd nearby_chat
 flutter pub get
 flutter analyze
 flutter test
+flutter run                 # phone connected by USB with developer mode on
+flutter build apk --debug   # needs the Android SDK (tools/SETUP_ANDROID_SDK.bat on Windows)
 ```
-To run on a connected Android or iOS device:
+
+### Mesh simulation
 ```bash
-flutter run
+pip install -r mesh_simulation/requirements.txt
+python -m pytest mesh_simulation/tests -v
+python -m mesh_simulation.experiments.run_experiments
+python -m mesh_simulation.dashboard.app                 # http://127.0.0.1:5000
+sudo python3 -m mesh_simulation.topology.mininet_topology --topology line   # Ubuntu + Mininet-WiFi
 ```
+
+### Browser demos
+Open `nearbychat_demo.html` (two phones) or `nearbychat_relay_demo.html` (three device relay) in a browser.
+

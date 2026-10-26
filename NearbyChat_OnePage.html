@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NearbyChat - Project Summary</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  html, body {
+    width: 210mm;
+    height: 297mm;
+    max-height: 297mm;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    background-color: #ffffff;
+    line-height: 1.42;
+    font-size: 9.2pt;
+    position: relative;
+    overflow: hidden;
+  }
+  body {
+    padding: 12mm 16mm 12mm 16mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  /* Header Section */
+  .header-container {
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 10px;
+  }
+  .header-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .tagline-badge {
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 2.5px 9px;
+    border-radius: 4px;
+    border: 1px solid #bfdbfe;
+  }
+  .date-badge {
+    font-size: 7.8pt;
+    color: #64748b;
+    font-weight: 600;
+  }
+  .project-title {
+    font-size: 24pt;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.5px;
+    line-height: 1.15;
+  }
+  .project-title span {
+    color: #2563eb;
+  }
+  .academic-title {
+    font-size: 10.5pt;
+    font-weight: 600;
+    color: #334155;
+    margin-top: 3px;
+  }
+
+  /* Badges Row */
+  .badges-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-size: 7.5pt;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+  }
+  .badge-highlight {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+  }
+
+  /* Content Cards */
+  .card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 9.5px 13px;
+  }
+  .card-title {
+    font-size: 9.3pt;
+    font-weight: 750;
+    color: #0f172a;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .card-title-icon {
+    width: 6px;
+    height: 6px;
+    background-color: #2563eb;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  p.desc {
+    color: #334155;
+    font-size: 8.8pt;
+    line-height: 1.45;
+  }
+
+  /* 2-Column Content Layout */
+  .two-col-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* Dual Track Boxes */
+  .track-box {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px 11px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .track-header {
+    font-size: 8.8pt;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-bottom: 2px;
+  }
+  .track-tech {
+    font-size: 7.6pt;
+    color: #0369a1;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .track-body {
+    font-size: 8.3pt;
+    color: #334155;
+    line-height: 1.36;
+  }
+
+  /* Feature Lists */
+  .feature-list {
+    list-style: none;
+  }
+  .feature-list li {
+    font-size: 8.3pt;
+    color: #334155;
+    margin-bottom: 3.5px;
+    padding-left: 12px;
+    position: relative;
+    line-height: 1.34;
+  }
+  .feature-list li:last-child {
+    margin-bottom: 0;
+  }
+  .feature-list li::before {
+    content: "•";
+    color: #2563eb;
+    font-weight: bold;
+    position: absolute;
+    left: 0;
+    font-size: 10pt;
+    line-height: 1;
+    top: 0;
+  }
+  .feature-list strong {
+    color: #0f172a;
+  }
+
+  /* Metrics Bar */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .metric-card {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 7px 8px;
+    text-align: center;
+  }
+  .metric-value {
+    font-size: 13pt;
+    font-weight: 800;
+    color: #2563eb;
+    line-height: 1.1;
+  }
+  .metric-label {
+    font-size: 7.2pt;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  /* Team Section */
+  .team-section {
+    margin-top: 1px;
+  }
+  .section-label {
+    font-size: 7.8pt;
+    font-weight: 750;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 5px;
+  }
+  .team-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .member-card {
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .member-info h4 {
+    font-size: 11pt;
+    font-weight: 750;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+  .member-info .role {
+    font-size: 7.8pt;
+    color: #64748b;
+    font-weight: 500;
+  }
+  .member-reg-badge {
+    background: #0f172a;
+    color: #ffffff;
+    font-size: 8.5pt;
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    padding: 4px 8px;
+    border-radius: 5px;
+    letter-spacing: 0.5px;
+  }
+
+  /* GitHub Footer Box */
+  .github-box {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 8px;
+    padding: 11px 16px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  .github-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .github-icon-svg {
+    width: 32px;
+    height: 32px;
+    fill: #ffffff;
+    flex-shrink: 0;
+  }
+  .github-meta h5 {
+    font-size: 9.5pt;
+    font-weight: 750;
+    color: #ffffff;
+    margin-bottom: 2px;
+    letter-spacing: 0.2px;
+  }
+  .github-meta p {
+    font-size: 7.8pt;
+    color: #94a3b8;
+  }
+  .github-link-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    background: #1d4ed8;
+    color: #ffffff !important;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #3b82f6;
+  }
+  .github-btn-label {
+    font-size: 6.8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    color: #93c5fd;
+  }
+  .github-url-text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.1px;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <div class="header-container">
+    <div class="header-top-row">
+      <span class="tagline-badge">Academic Project Brief & Technical Summary</span>
+      <span class="date-badge">Academic Year 2026</span>
+    </div>
+    <h1 class="project-title">Nearby<span>Chat</span></h1>
+    <div class="academic-title">Design and Security Analysis of a Secure Peer-to-Peer Mesh Communication System</div>
+    <div class="badges-row">
+      <span class="badge badge-highlight">Bluetooth Low Energy (BLE) Dual-Role</span>
+      <span class="badge badge-highlight">X25519 ECDH + AES-GCM-256</span>
+      <span class="badge">Zero Infrastructure Dependency</span>
+      <span class="badge">Multi-Hop Mesh Relaying</span>
+      <span class="badge">Perfect Forward Secrecy</span>
+    </div>
+  </div>
+
+  <!-- Executive Summary -->
+  <div class="card">
+    <div class="card-title"><span class="card-title-icon"></span> Executive Summary & Core Objective</div>
+    <p class="desc">
+      Modern communication platforms (Signal, WhatsApp, Telegram) depend strictly on active cellular infrastructure, central servers, and global internet routing. During natural disasters, state-mandated shutdowns, or remote field operations, centralized channels collapse. 
+      <strong>NearbyChat</strong> resolves this vulnerability by delivering an autonomous, serverless, zero-knowledge direct and multi-hop mesh communication system. Operating over standard smartphone <strong>Bluetooth Low Energy (BLE)</strong> hardware, it enables end-to-end encrypted messaging with no phone numbers, email addresses, or external network infrastructure.
+    </p>
+  </div>
+
+  <!-- Dual-Track Architecture -->
+  <div class="card">
+    <div class="card-title"><span class="card-title-icon"></span> Dual-Dimension Implementation</div>
+    <div class="two-col-grid">
+      <div class="track-box">
+        <div>
+          <div class="track-header">Dimension 1: Mobile Client Application</div>
+          <div class="track-tech">Flutter 3.x • Dart • Android 7.0+ & iOS 13.0+</div>
+          <div class="track-body">
+            Full-featured mobile client with simultaneous BLE Central & Peripheral GATT operations. Enables seamless peer discovery, instant message transmission, Safety Number verification, and on-device hardware-backed encrypted storage.
+          </div>
+        </div>
+      </div>
+      <div class="track-box">
+        <div>
+          <div class="track-header">Dimension 2: Research & Mesh Simulation</div>
+          <div class="track-tech">Python 3.10+ • Mininet-WiFi • Linux Namespaces</div>
+          <div class="track-body">
+            Rigorous academic emulation platform modeling 4–10 virtual wireless nodes. Evaluates multi-hop packet routing, dynamic route failover, dropper node isolation, trust scoring heuristics, and replay attack immunity under network stress.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technical Pillars: Cryptography + Protocol -->
+  <div class="two-col-grid">
+    <div class="card">
+      <div class="card-title"><span class="card-title-icon"></span> Cryptographic Model</div>
+      <ul class="feature-list">
+        <li><strong>X25519 ECDH Key Agreement:</strong> Hardware-backed Diffie-Hellman session secret derivation per conversation.</li>
+        <li><strong>AES-GCM-256 Authenticated Cipher:</strong> Authenticated ciphertexts with random 12-byte IVs guaranteeing confidentiality and tampering detection.</li>
+        <li><strong>Safety Numbers:</strong> SHA-256 fingerprint verification (6 numeric blocks) preventing Man-in-the-Middle (MITM) attacks.</li>
+        <li><strong>Authenticated HMAC ACKs:</strong> Cryptographic delivery receipts verified via session keys to eliminate spoofing.</li>
+        <li><strong>At-Rest Encryption:</strong> Local chat histories fully encrypted before persistent storage on disk.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="card-title-icon"></span> Network & Protocol Design</div>
+      <ul class="feature-list">
+        <li><strong>Simultaneous Dual-Role GATT:</strong> Simultaneously broadcasts BLE advertising packets and scans for nearby peers.</li>
+        <li><strong>MTU Adaptive Slicing:</strong> Binary frame codec splitting arbitrarily large payloads into 20–512 byte fragments with CRC32 integrity.</li>
+        <li><strong>Multi-Hop Mesh Routing:</strong> Dynamic next-hop routing tables, hop limits (TTL=7), and duplicate message suppression.</li>
+        <li><strong>Anti-Spoofing & Replay Defense:</strong> Nonce tracking and public key-to-username binding prevent replay and impersonation.</li>
+        <li><strong>Automated Test Verification:</strong> 28/28 Flutter unit tests + 9/9 Python pytest tests passing (100% test pass rate).</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Key Metrics Row -->
+  <div class="card">
+    <div class="card-title"><span class="card-title-icon"></span> Empirical Verification & Performance Metrics</div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-value">100%</div>
+        <div class="metric-label">Automated Tests Passed (37/37)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value">&lt; 1.2s</div>
+        <div class="metric-label">Peer Discovery Latency</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value">256-bit</div>
+        <div class="metric-label">AES-GCM Authenticated Crypto</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value">0 B</div>
+        <div class="metric-label">Plaintext Metadata Leaked</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Team Members Section -->
+  <div class="team-section">
+    <div class="section-label">Project Authors & Team Members</div>
+    <div class="team-grid">
+      <div class="member-card">
+        <div class="member-info">
+          <h4>Yash</h4>
+          <div class="role">Project Author / Mobile & Cryptography</div>
+        </div>
+        <div class="member-reg-badge">24BCT0155</div>
+      </div>
+      <div class="member-card">
+        <div class="member-info">
+          <h4>Rohan</h4>
+          <div class="role">Project Author / Mesh Network Simulation</div>
+        </div>
+        <div class="member-reg-badge">24BKT0060</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GitHub Repository Box -->
+  <div class="github-box">
+    <div class="github-left">
+      <svg class="github-icon-svg" viewBox="0 0 24 24">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+      </svg>
+      <div class="github-meta">
+        <h5>Source Code & Complete Repository</h5>
+        <p>Full implementation, academic research papers, test suites, and interactive web demos</p>
+      </div>
+    </div>
+    <a href="https://github.com/Yash-Maholiya/NearbyChat" class="github-link-btn" target="_blank">
+      <span class="github-btn-label">Official GitHub Repository</span>
+      <span class="github-url-text">https://github.com/Yash-Maholiya/NearbyChat</span>
+    </a>
+  </div>
+
+</body>
+</html>
